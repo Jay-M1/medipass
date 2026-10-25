@@ -119,11 +119,14 @@ class SimpleHandlersTest(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "internal")
 
 
-class ToolsTest(unittest.TestCase):
-    PLAN = json.dumps({"calls": [{"tool": "lookup_record", "input": {"id": 7}}]})
+CALL = json.dumps({"action": "call", "tool": "lookup_record", "input": {"id": 7}})
+DONE = json.dumps({"action": "done"})
+ANSWER = json.dumps({"text": "It is Ada.", "data": {}})
 
-    def task(self) -> dict[str, Any]:
-        return {"type": "use_tools", "input": "Who is record 7?", "tools": TOOLS, "challengeToken": "t", "limits": {"timeoutMs": 500}}
+
+class ToolsTest(unittest.TestCase):
+    def task(self, **extra: Any) -> dict[str, Any]:
+        return {"type": "use_tools", "input": "Who is record 7?", "tools": TOOLS, "challengeToken": "t", "limits": {"timeoutMs": 500}, **extra}
 
     def test_requires_tools(self) -> None:
         with self.assertRaises(TaskError) as ctx:
@@ -134,10 +137,54 @@ class ToolsTest(unittest.TestCase):
         async def tool(*_a: Any, **_k: Any) -> dict[str, str]:
             return {"name": "Ada"}
 
-        with patch.object(h, "ask_llm", model(self.PLAN, "It is Ada.")), patch.object(h, "call_tool", tool):
+        with patch.object(h, "ask_llm", model(CALL, DONE, ANSWER)), patch.object(h, "call_tool", tool):
             out = run(h.use_tools(self.task(), {}))
         self.assertEqual(out["toolResults"], [{"tool": "lookup_record", "result": {"name": "Ada"}}])
-        self.assertEqual(out["text"], "It is Ada.")
+        self.assertEqual((out["text"], out["data"]), ("It is Ada.", {}))
+
+    def test_a_later_call_can_use_an_earlier_result_and_the_answer_has_structured_data(self) -> None:
+        """The failure seen on the platform. The currency is only known after the lookups, and totalGbp must be in data."""
+        tools = [
+            {"name": "lookup_record", "description": "Find a record", "url": "https://x.example/t/lookup_record", "inputSchema": {}},
+            {"name": "exchange_rate", "description": "Rate to GBP", "url": "https://x.example/t/exchange_rate", "inputSchema": {}},
+        ]
+        steps = [
+            json.dumps({"action": "call", "tool": "lookup_record", "input": {"id": "A"}}),
+            json.dumps({"action": "call", "tool": "lookup_record", "input": {"id": "B"}}),
+            json.dumps({"action": "call", "tool": "exchange_rate", "input": {"from": "EUR"}}),
+            DONE,
+            json.dumps({"text": "100 EUR at 0.85 is 85 GBP", "data": {"totalGbp": 85.0}}),
+        ]
+        seen: list[str] = []
+
+        async def tool(tool_def: dict[str, Any], _task: Any, tool_input: dict[str, Any], _timeout: Any = None) -> dict[str, Any]:
+            seen.append(tool_def["name"])
+            return {"rate": 0.85} if tool_def["name"] == "exchange_rate" else {"amount": 50, "currency": "EUR"}
+
+        schema = {"type": "object", "required": ["totalGbp"], "properties": {"totalGbp": {"type": "number"}}}
+        with patch.object(h, "ask_llm", model(*steps)), patch.object(h, "call_tool", tool):
+            out = run(h.use_tools(self.task(tools=tools, schema=schema), {}))
+        self.assertEqual(seen, ["lookup_record", "lookup_record", "exchange_rate"])
+        self.assertEqual(out["data"], {"totalGbp": 85.0})
+        self.assertEqual(len(out["toolResults"]), 3)
+
+    def test_an_answer_that_misses_the_schema_is_asked_for_again(self) -> None:
+        schema = {"type": "object", "required": ["totalGbp"], "properties": {"totalGbp": {"type": "number"}}}
+        replies = [DONE, json.dumps({"text": "x", "data": {}}), json.dumps({"text": "x", "data": {"totalGbp": 12.5}})]
+        with patch.object(h, "ask_llm", model(*replies)):
+            out = run(h.use_tools(self.task(schema=schema), {}))
+        self.assertEqual(out["data"], {"totalGbp": 12.5})
+
+    def test_the_same_call_is_not_made_twice(self) -> None:
+        calls = {"n": 0}
+
+        async def tool(*_a: Any, **_k: Any) -> dict[str, str]:
+            calls["n"] += 1
+            return {"name": "Ada"}
+
+        with patch.object(h, "ask_llm", model(CALL, CALL, ANSWER)), patch.object(h, "call_tool", tool):
+            run(h.use_tools(self.task(), {}))
+        self.assertEqual(calls["n"], 1)
 
     def test_recovers_from_transient_503(self) -> None:
         calls = {"n": 0}
@@ -148,7 +195,7 @@ class ToolsTest(unittest.TestCase):
                 raise ToolCallError("lookup_record", 503, "busy")
             return {"name": "Ada"}
 
-        with patch.object(h, "ask_llm", model(self.PLAN, "Ada")), patch.object(h, "call_tool", flaky), patch.object(h.asyncio, "sleep", no_sleep):
+        with patch.object(h, "ask_llm", model(CALL, DONE, ANSWER)), patch.object(h, "call_tool", flaky), patch.object(h.asyncio, "sleep", no_sleep):
             out = run(h.use_tools(self.task(), {}))
         self.assertEqual(calls["n"], 3)
         self.assertEqual(out["toolResults"][0]["result"], {"name": "Ada"})
@@ -157,7 +204,7 @@ class ToolsTest(unittest.TestCase):
         async def down(*_a: Any, **_k: Any) -> None:
             raise ToolCallError("lookup_record", 503, "busy")
 
-        with patch.object(h, "ask_llm", model(self.PLAN)), patch.object(h, "call_tool", down), patch.object(h.asyncio, "sleep", no_sleep), self.assertRaises(TaskError) as ctx:
+        with patch.object(h, "ask_llm", model(CALL)), patch.object(h, "call_tool", down), patch.object(h.asyncio, "sleep", no_sleep), self.assertRaises(TaskError) as ctx:
             run(h.use_tools(self.task(), {}))
         self.assertEqual(ctx.exception.code, "upstream_unavailable")
 
@@ -168,12 +215,12 @@ class ToolsTest(unittest.TestCase):
             calls["n"] += 1
             raise ToolCallError("lookup_record", None, "lookup_record did not answer within 500 ms")
 
-        with patch.object(h, "ask_llm", model(self.PLAN)), patch.object(h, "call_tool", silent), self.assertRaises(TaskError) as ctx:
+        with patch.object(h, "ask_llm", model(CALL)), patch.object(h, "call_tool", silent), self.assertRaises(TaskError) as ctx:
             run(h.use_tools(self.task(), {}))
         self.assertEqual((ctx.exception.code, calls["n"]), ("upstream_timeout", 1))
 
-    def test_a_plan_with_an_unknown_tool_is_rejected(self) -> None:
-        with patch.object(h, "ask_llm", model('{"calls": [{"tool": "delete_everything", "input": {}}]}')), self.assertRaises(TaskError):
+    def test_a_step_with_an_unknown_tool_is_rejected(self) -> None:
+        with patch.object(h, "ask_llm", model('{"action": "call", "tool": "delete_everything", "input": {}}')), self.assertRaises(TaskError):
             run(h.use_tools(self.task(), {}))
 
 

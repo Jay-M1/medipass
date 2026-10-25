@@ -172,24 +172,56 @@ async def extract(task: Task, _request: dict[str, Any]) -> TaskOutput:
     return {"data": data, "text": json.dumps(data)}
 
 
-async def use_tools(task: Task, _request: dict[str, Any]) -> TaskOutput:
-    goal, tools = _goal(task), _tools(task)
-    max_calls = int(_limits(task).get("maxToolCalls") or DEFAULT_MAX_TOOL_CALLS)
+async def _gather(task: Task, goal: str, tools: list[dict[str, Any]], max_calls: int) -> list[dict[str, Any]]:
+    """Calls tools one at a time. The model sees every result so far, so a later call can use an earlier answer."""
     by_name = {str(t["name"]): t for t in tools}
-
-    def valid_plan(plan: Any) -> str | None:
-        calls = plan.get("calls") if isinstance(plan, dict) else None
-        if not isinstance(calls, list) or not all(isinstance(c, dict) and c.get("tool") in by_name and isinstance(c.get("input", {}), dict) for c in calls):
-            return 'it must be {"calls": [{"tool": <a listed tool name>, "input": {...}}]}.'
-        return None
-
-    plan = await _ask_json(f"Plan the tool calls needed for this request. Call only the tools you need, as few times as possible.\n\nRequest\n{goal}\n\nTools\n{_describe(tools)}", valid_plan)
     results: list[dict[str, Any]] = []
-    for call in plan["calls"][:max_calls]:
-        result = await _call_tool_reliably(by_name[call["tool"]], task, call.get("input") or {})
-        results.append({"tool": call["tool"], "result": result})
-    answer = await _ask(f"Answer the request using only these tool results. State values exactly as the tools returned them.\n\nRequest\n{goal}\n\nTool results\n{json.dumps(results)}")
-    return {"text": answer.strip(), "toolResults": results}
+    seen: set[str] = set()
+
+    def valid_step(step: Any) -> str | None:
+        if isinstance(step, dict) and step.get("action") == "done":
+            return None
+        if isinstance(step, dict) and step.get("action") == "call" and step.get("tool") in by_name and isinstance(step.get("input", {}), dict):
+            return None
+        return 'it must be {"action": "call", "tool": <a listed tool name>, "input": {...}} or {"action": "done"}.'
+
+    for _ in range(max_calls + 1):
+        prompt = (
+            "You answer a request by calling tools. Decide the next step.\n"
+            "Call every tool the request needs. If the results are in different currencies or units, call the tool that converts them, once for each one you need.\n"
+            "Use values from earlier results as inputs. Never invent a value. Do not repeat a call you already made. Reply with done when you have everything you need.\n\n"
+            f"Request\n{goal}\n\nTools\n{_describe(tools)}\n\nResults so far\n{json.dumps(results)}"
+        )
+        step = await _ask_json(prompt, valid_step)
+        if step["action"] == "done" or len(results) >= max_calls:
+            break
+        key = json.dumps([step["tool"], step.get("input") or {}], sort_keys=True)
+        if key in seen:
+            break
+        seen.add(key)
+        results.append({"tool": step["tool"], "result": await _call_tool_reliably(by_name[step["tool"]], task, step.get("input") or {})})
+    return results
+
+
+async def use_tools(task: Task, _request: dict[str, Any]) -> TaskOutput:
+    goal, tools, schema = _goal(task), _tools(task), task.get("schema")
+    max_calls = int(_limits(task).get("maxToolCalls") or DEFAULT_MAX_TOOL_CALLS)
+    results = await _gather(task, goal, tools, max_calls)
+
+    def valid_answer(value: Any) -> str | None:
+        if not isinstance(value, dict) or not isinstance(value.get("text"), str) or not isinstance(value.get("data"), dict):
+            return 'it must be {"text": <string>, "data": {...}}.'
+        return _schema_issue(value["data"], schema, "data") if isinstance(schema, dict) else None
+
+    prompt = (
+        "Answer the request using only these tool results. Do the arithmetic carefully and state values exactly as the tools returned them.\n"
+        'Reply as {"text": <a short answer that shows the working>, "data": {...}}.\n'
+        "If the request or the schema names output fields (for example totalGbp), put them in data with exactly those names and plain numbers, with no currency symbol and no thousands separator. Round money to 2 decimals unless the request says otherwise. If no fields are named, data is an empty object.\n"
+        + (f"data must match this JSON Schema {json.dumps(schema)}\n" if isinstance(schema, dict) else "")
+        + f"\nRequest\n{goal}\n\nTool results\n{json.dumps(results)}"
+    )
+    answer = await _ask_json(prompt, valid_answer)
+    return {"text": answer["text"].strip(), "data": answer["data"], "toolResults": results}
 
 
 async def answer_from_source(task: Task, _request: dict[str, Any]) -> TaskOutput:
