@@ -11,3 +11,6 @@ __pycache__/
 *.keypair.json
 apikey.txt
 *.key
+
+# Work in progress from another session, not part of the app
+agent/medipass/identify.py
