@@ -33,7 +33,7 @@
       <div><label for="meds">Current medicines</label><input id="meds" value="Clopidogrel, Simvastatin, Ramipril"></div>
       <div><label for="allergies">Allergies</label><input id="allergies" value="Penicillin"></div>
       <div><label for="conditions">Conditions</label><input id="conditions" value=""></div>
-      <div><label for="genes">Gene results (GENE: phenotype)</label><input id="genes" value="CYP2C19: poor, SLCO1B1: decreased, CYP2D6: normal"></div>
+      <div><label for="genes">Gene results (GENE: phenotype)</label><input id="genes" value="CYP2C19: poor, SLCO1B1: decreased, CYP2D6: poor"></div>
       <div><label for="egfr">Kidney function (eGFR)</label><input id="egfr" type="number" value="52"></div>
       <div><label for="sleep">Ring, sleep last night (hours)</label><input id="sleep" type="number" step="0.1" value="4.8"></div>
       <div><label for="temp">Ring, temperature (C)</label><input id="temp" type="number" step="0.1" value="36.8"></div>
@@ -61,7 +61,7 @@ const list = (id) => $(id).value.split(",").map((s) => s.trim()).filter(Boolean)
 function payload() {
   const genotype = {};
   for (const part of list("genes")) { const [g, p] = part.split(":").map((s) => s.trim()); if (g && p) genotype[g.toUpperCase()] = p; }
-  return { prompt: $("prompt").value, profile: { medications: list("meds"), allergies: list("allergies"), conditions: list("conditions"), genotype, labs: Number.isFinite(parseFloat($("egfr").value)) ? { egfr: parseFloat($("egfr").value) } : {} }, wearable: { sleep_hours: Number($("sleep").value), temperature_c: Number($("temp").value) } };
+  return { prompt: $("prompt").value, profile: { medications: list("meds"), allergies: list("allergies"), conditions: list("conditions"), genotype, labs: Number.isFinite(parseFloat($("egfr").value)) ? { egfr: parseFloat($("egfr").value) } : {}, history: ["a heart operation last year (a stent after a heart attack)"] }, wearable: { sleep_hours: Number($("sleep").value), temperature_c: Number($("temp").value) } };
 }
 const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
 const titles = { order: "Ordered", doctor_review: "Waiting for a doctor", urgent: "Please get medical help now", advise: "Not ordered, advice only", unknown: "I need more information" };

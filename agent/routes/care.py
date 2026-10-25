@@ -41,7 +41,7 @@ def register(app: FastAPI) -> None:
             profile = parse_profile(raw_profile)
         except ValueError as err:
             return JSONResponse({"error": str(err)}, status_code=400)
-        return JSONResponse(await care.run(prompt.strip(), profile, body.get("wearable"), understand_prompt, auto_buy=body.get("autoBuy") is not False))
+        return JSONResponse(await care.run(prompt.strip(), profile, body.get("wearable"), understand_prompt, auto_buy=body.get("autoBuy") is not False, name=body.get("name") if isinstance(body.get("name"), str) else None))
 
     @app.post("/api/care/buy")
     async def buy(request: Request) -> JSONResponse:

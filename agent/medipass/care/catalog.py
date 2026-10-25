@@ -34,7 +34,7 @@ INTENTS: tuple[tuple[str, str], ...] = (
     ("headache", r"headache|migraine|kopfschmerz|kopfweh|migräne|migraene|head (hurts|aches|is pounding|is throbbing)|pounding head|(schädel|schaedel|kopf) (brummt|dröhnt|droehnt|hämmert|haemmert|pocht|tut weh)|brummschädel|brummschaedel"),
     ("fever", r"(?<!hay )(?<!hay-)fever|temperature|fieber"),
     ("heartburn", r"heartburn|acid reflux|sodbrennen|reflux|stomach acid|magensäure"),
-    ("pain", r"\bpain\b|\bache\b|schmerz"),
+    ("pain", r"\bpain\b|\bache\b|schmerz|painkiller|pain killer|analgesic"),
 )
 
 CONSULT_FEE_USDC = 0.02

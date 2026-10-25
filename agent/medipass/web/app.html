@@ -94,8 +94,9 @@
       <label for="meds">Current medicines (comma separated)</label><input id="meds" value="Clopidogrel, Simvastatin, Ramipril">
       <label for="allergies">Allergies (e.g. penicillin, NSAID)</label><input id="allergies" value="Penicillin">
       <label for="conditions">Conditions (e.g. stomach ulcer, chronic kidney disease)</label><input id="conditions" value="">
-      <label for="genes">Gene results (GENE: phenotype, comma separated)</label><input id="genes" value="CYP2C19: poor, SLCO1B1: decreased, CYP2D6: normal">
+      <label for="genes">Gene results (GENE: phenotype, comma separated)</label><input id="genes" value="CYP2C19: poor, SLCO1B1: decreased, CYP2D6: poor">
       <label for="egfr">Kidney function from the lab (eGFR, below 60 is reduced)</label><input id="egfr" type="number" value="52">
+      <label for="history">Medical history, operations and events (comma separated)</label><input id="history" value="a heart operation last year (a stent after a heart attack)">
       <label for="symptoms">Your own notes on complaints</label><input id="symptoms" value="muscle pain in the legs since the statin">
     </div>
   </section>
@@ -132,7 +133,7 @@ function profile() {
   const genotype = {};
   for (const part of list("genes")) { const [g, p] = part.split(":").map((s) => s.trim()); if (g && p) genotype[g.toUpperCase()] = p; }
   const egfr = parseFloat($("egfr").value);
-  return { medications: list("meds"), allergies: list("allergies"), conditions: list("conditions"), genotype, labs: Number.isFinite(egfr) ? { egfr } : {}, symptoms: list("symptoms") };
+  return { medications: list("meds"), allergies: list("allergies"), conditions: list("conditions"), genotype, labs: Number.isFinite(egfr) ? { egfr } : {}, symptoms: list("symptoms"), history: list("history") };
 }
 const aiMeanings = { green: "The AI found no concern. This medicine is not in our rule set, so double check with a pharmacist.", yellow: "The AI sees points to check. Read them below and ask a pharmacist.", red: "The AI advises against it for you. Talk to a doctor or pharmacist first.", unknown: "The AI could not assess this one." };
 const meanings = { green: "No concerns found in the data checked.", yellow: "Take care. Read the points below before you use it.", red: "Not advised for you. Talk to a doctor or pharmacist first.", unknown: "This medicine is not in the demo rule set, so it was not checked." };
@@ -308,7 +309,7 @@ $("name").addEventListener("input", () => { const n = $("name").value.trim() || 
 
 // Ask the agent. It checks the record, may propose or buy, and sends prescription medicines to a doctor.
 const askLabels = { order: "Ordered", proposal: "Suggestion, waiting for you", doctor_review: "Waiting for a doctor", urgent: "Please get medical help now", advise: "Not ordered, advice only", unknown: "I need more information" };
-const askExamples = ["Please order my blood thinner.", "I have a headache since this morning, get me something.", "My eyes itch and my nose runs every spring.", "I have a bladder infection, I need an antibiotic.", "I have pain in my liver."];
+const askExamples = ["Please order my blood thinner.", "I need painkillers.", "I have a headache since this morning, get me something.", "My eyes itch and my nose runs every spring.", "I have a bladder infection, I need an antibiotic.", "I have pain in my liver."];
 for (const t of askExamples) { const b = document.createElement("button"); b.className = "chip"; b.textContent = t.length > 38 ? t.slice(0, 36) + "..." : t; b.onclick = () => { $("ask").value = t; }; $("askChips").append(b); }
 let askTimer = null;
 const mk = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
@@ -375,7 +376,7 @@ async function askAgent() {
   if (!text) return;
   clearInterval(askTimer); $("askBtn").disabled = true; $("askOut").replaceChildren(mk("p", "The agent is working...", "small"));
   try {
-    const res = await fetch("/api/care/agent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: text, profile: profile(), autoBuy: $("autoBuy").checked }) });
+    const res = await fetch("/api/care/agent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: text, profile: profile(), autoBuy: $("autoBuy").checked, name: ($("name").value.trim().split(/\s+/)[0] || "") }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Request failed");
     renderAsk(data);

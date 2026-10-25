@@ -235,6 +235,55 @@ class DescribedMedicineTest(unittest.TestCase):
         self.assertEqual(out["decision"], "doctor_review")
 
 
+MAX = parse_profile({"medications": ["Clopidogrel", "Simvastatin", "Ramipril"], "allergies": ["Penicillin"], "genotype": {"CYP2C19": "poor", "SLCO1B1": "decreased", "CYP2D6": "poor"}, "labs": {"egfr": 52},
+                     "history": ["a heart operation last year (a stent after a heart attack)"]})
+
+
+class PainkillerExplanationTest(unittest.TestCase):
+    """"I need painkillers", answered with the reasons from this person's record."""
+
+    def ask(self, text: str, profile: Profile = MAX, name: str | None = "Max") -> dict[str, Any]:
+        return asyncio.run(care.run(text, profile, None, None, True, name))
+
+    def test_the_answer_names_the_operation_the_blood_thinner_the_gene_and_the_one_painkiller_left(self) -> None:
+        out = self.ask("I need painkillers")
+        reply = out["reply"]
+        self.assertEqual((out["decision"], out["order"]["product"]), ("order", "Paracetamol 500 mg, 20 tablets"))
+        self.assertTrue(reply.startswith("Sorry, Max, I cannot order every painkiller for you."))
+        self.assertIn("You had a heart operation last year (a stent after a heart attack), and since then you take clopidogrel.", reply)
+        self.assertIn("Ibuprofen and Aspirin are out, because of a clash with the clopidogrel you take.", reply)
+        self.assertIn("Codeine and Tramadol are out, because you were born with a gene variant (CYP2D6 poor metabolizer).", reply)
+        self.assertIn("That is why I can only order Paracetamol 500 mg, 20 tablets.", reply)
+
+    def test_german_wording_gives_the_same_explanation(self) -> None:
+        self.assertIn("Codeine and Tramadol are out", self.ask("Ich brauche Schmerzmittel")["reply"])
+
+    def test_it_only_says_what_is_true_for_this_person(self) -> None:
+        no_gene = parse_profile({"medications": ["Clopidogrel"], "genotype": {"CYP2D6": "normal"}, "history": ["a heart operation last year"]})
+        reply = self.ask("I need painkillers", no_gene)["reply"]
+        self.assertNotIn("Codeine", reply)
+        self.assertNotIn("gene variant", reply)
+        self.assertIn("Ibuprofen and Aspirin are out", reply)
+
+    def test_without_a_recorded_operation_it_does_not_invent_one(self) -> None:
+        no_history = parse_profile({"medications": ["Clopidogrel"], "genotype": {"CYP2D6": "poor"}})
+        reply = self.ask("I need painkillers", no_history)["reply"]
+        self.assertNotIn("You had", reply)
+        self.assertIn("Ibuprofen and Aspirin are out", reply)
+
+    def test_a_person_with_no_problems_gets_the_plain_answer(self) -> None:
+        reply = self.ask("I need painkillers", Profile())["reply"]
+        self.assertNotIn("Sorry", reply)
+        self.assertIn("I ordered", reply)
+
+    def test_without_a_name_the_sentence_still_reads_well(self) -> None:
+        self.assertTrue(self.ask("I need painkillers", name=None)["reply"].startswith("Sorry, I cannot order every painkiller"))
+
+    def test_the_agent_never_orders_codeine_or_tramadol(self) -> None:
+        for profile in (MAX, Profile(), parse_profile({"genotype": {"CYP2D6": "normal"}})):
+            self.assertNotIn("odeine", self.ask("I need painkillers", profile)["order"]["product"])
+
+
 class HayFeverTest(unittest.TestCase):
     def test_hay_fever_is_not_a_fever(self) -> None:
         self.assertIsNone(care.detect_intent("it is hay fever"))

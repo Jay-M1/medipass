@@ -88,7 +88,8 @@ def _context_notes(wearable: dict[str, Any]) -> list[str]:
 def _candidate(product: Product, profile: Profile) -> dict[str, Any]:
     result = check(product.ingredient, profile)
     return {"ingredient": product.ingredient, "label": product.label, "price_usdc": product.price_usdc, "prescription": product.prescription, "verdict": result.verdict,
-            "warnings": [f.title for f in result.findings], "details": [f.detail for f in result.findings], "advice": [f.advice for f in result.findings if f.advice]}
+            "warnings": [f.title for f in result.findings], "details": [f.detail for f in result.findings], "advice": [f.advice for f in result.findings if f.advice],
+            "findings": [{"kind": f.kind, "title": f.title, "detail": f.detail} for f in result.findings]}
 
 
 def _rank(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -169,6 +170,61 @@ async def _ask_doctor_about_antibiotic(prompt: str, profile: Profile, wearable: 
     return _result(prompt, "infection", tri, steps, [], "doctor_review", reply, requestId=request_id, notes=notes)
 
 
+# Painkillers the agent never orders, but whose exclusion it explains when the record rules them out.
+EXPLAINED_ONLY = ("codeine", "tramadol")
+
+
+def _first_name(name: str | None) -> str | None:
+    parts = (name or "").strip().split()
+    return parts[0] if parts else None
+
+
+def _sentence(text: str) -> str:
+    text = text.strip()
+    return text if text.endswith((".", "!", "?")) else text + "."
+
+
+DISPLAY_NAMES = {"acetylsalicylic acid": "Aspirin"}
+
+
+def _reason(finding: dict[str, str]) -> tuple[str, str]:
+    """Why a medicine is out, as (the cause, one explaining sentence), in the words of the person's own record."""
+    head, _, rest = finding["detail"].partition(". ")
+    rest = _sentence(rest.split(". ")[0]) if rest else ""
+    kind = finding["kind"]
+    if kind == "interaction" and head.startswith("With "):
+        return f"of a clash with the {head[5:]} you take", rest
+    if kind == "pharmacogenetics":
+        return f"you were born with a gene variant ({head})", rest
+    if kind == "condition" and head.startswith("With "):
+        return f"of your {head[5:]}", rest
+    if kind == "allergy":
+        return "of your allergy", rest
+    return finding["title"].lower(), rest
+
+
+def _explain_painkiller(first: str | None, profile: Profile, chosen: dict[str, Any], others: list[dict[str, Any]]) -> str | None:
+    """"Sorry Max, ..." with the real reasons from the record, and the one painkiller that is left. None when nothing was ruled out."""
+    groups: dict[str, tuple[list[str], str]] = {}
+    for c in others:
+        if c["verdict"] in ("yellow", "red") and c["findings"]:
+            cause, rest = _reason(c["findings"][0])
+            names, first_rest = groups.setdefault(cause, ([], rest))
+            names.append(DISPLAY_NAMES.get(c["ingredient"], c["ingredient"].capitalize()))
+    if not groups:
+        return None
+    parts = [f"Sorry, {first}, I cannot order every painkiller for you." if first else "Sorry, I cannot order every painkiller for you."]
+    if profile.history and any("clopidogrel" in cause for cause in groups):
+        taken = next((m for m in profile.medications if m.strip().lower() == "clopidogrel"), "clopidogrel")
+        parts.append(f"You had {profile.history[0].strip().rstrip('.')}, and since then you take {taken.lower()}.")
+    for cause, (names, rest) in groups.items():
+        parts.append(f"{' and '.join(names)} {'is' if len(names) == 1 else 'are'} out, because {cause}.")
+        if rest:
+            parts.append(rest)
+    parts.append(f"That is why I can only order {chosen['label']}.")
+    return " ".join(parts)
+
+
 async def _personalised(prompt: str, unknown_named: str | None, profile: Profile, wearable: dict[str, Any], tri: Any, steps: list[dict[str, str]], notes: list[str], auto_buy: bool, via: str) -> dict[str, Any]:
     """A complaint outside the fast paths, or a medicine the rules do not know. The model lists the standard options and every one
     is judged against this record. The best one is ordered, proposed or sent to a doctor. Demo only, nothing is ordered for real."""
@@ -220,7 +276,7 @@ async def _personalised(prompt: str, unknown_named: str | None, profile: Profile
     return _result(prompt, None, tri, steps, candidates, "proposal", reply, proposal=proposal, **extra)
 
 
-async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understand: Understand | None = None, auto_buy: bool = True) -> dict[str, Any]:
+async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understand: Understand | None = None, auto_buy: bool = True, name: str | None = None) -> dict[str, Any]:
     """`understand` is the model's reading of the sentence. Without it only the keyword rules are used.
 
     With auto_buy off, a safe over-the-counter pick comes back as a proposal and nothing is ordered until buy() is called."""
@@ -312,7 +368,12 @@ async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understan
     request_id = secrets.token_hex(4)
     order = await fulfil(best["ingredient"], request_id, with_consult_fee=False)
     steps.append({"title": "Order and pay", "detail": f"Ordered {product.label}. {_payment_summary(order['payments'])}"})
-    reply = f"I ordered {product.label}. It is the best match for your record" + (f", and the other options had warnings ({', '.join(c['ingredient'] for c in candidates[1:] if c['warnings'])})." if any(c["warnings"] for c in candidates[1:]) else ".")
+    explained = None
+    if intent in ("pain", "headache"):
+        # codeine and tramadol are never offered, but a gene result that rules them out is part of the explanation
+        extra = [_candidate(Product(i, i.title(), 0.0, True, ()), profile) for i in EXPLAINED_ONLY]
+        explained = _explain_painkiller(_first_name(name), profile, {**best, "label": product.label}, candidates[1:] + extra)
+    reply = (explained + f" I ordered it for you.") if explained else (f"I ordered {product.label}. It is the best match for your record" + (f", and the other options had warnings ({', '.join(c['ingredient'] for c in candidates[1:] if c['warnings'])})." if any(c["warnings"] for c in candidates[1:]) else "."))
     return _result(prompt, intent, tri, steps, candidates, "order", reply, order=order, notes=notes + [NOT_CHECKED])
 
 

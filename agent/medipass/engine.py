@@ -37,6 +37,7 @@ class Profile:
     genotype: dict[str, str] = field(default_factory=dict)
     labs: dict[str, float] = field(default_factory=dict)
     symptoms: tuple[str, ...] = ()
+    history: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -79,7 +80,7 @@ def parse_profile(raw: dict[str, Any]) -> Profile:
     labs = raw.get("labs") or {}
     if not isinstance(labs, dict) or not all(isinstance(k, str) and isinstance(v, (int, float)) and not isinstance(v, bool) for k, v in labs.items()):
         raise ValueError('"labs" must map names to numbers, for example {"egfr": 52}.')
-    return Profile(strings("medications"), strings("allergies"), strings("conditions"), dict(genotype), {k.lower(): float(v) for k, v in labs.items()}, strings("symptoms"))
+    return Profile(strings("medications"), strings("allergies"), strings("conditions"), dict(genotype), {k.lower(): float(v) for k, v in labs.items()}, strings("symptoms"), strings("history"))
 
 
 def check(medicine: str, profile: Profile) -> CheckResult:

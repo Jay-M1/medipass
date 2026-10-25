@@ -30,7 +30,7 @@ NOTE = "Assessed by an AI model against your record. This medicine is not in our
 
 def _record(profile: Profile) -> dict[str, Any]:
     return {"current_medicines": list(profile.medications), "allergies": list(profile.allergies), "conditions": list(profile.conditions),
-            "gene_results": profile.genotype, "lab_values": profile.labs, "own_notes_on_complaints": list(profile.symptoms)}
+            "gene_results": profile.genotype, "lab_values": profile.labs, "own_notes_on_complaints": list(profile.symptoms), "history": list(profile.history)}
 
 
 def record_hash(profile: Profile) -> str:
