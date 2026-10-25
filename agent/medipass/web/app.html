@@ -6,99 +6,67 @@
 <link rel="icon" href="/assets/favicon.png" type="image/png">
 <meta name="theme-color" content="#012a57">
 <title>MediPass</title>
-<style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#14181f; --muted:#5b6472; --line:#e3e6ea; --green:#1f9d55; --yellow:#e0a100; --red:#d6382f; --accent:#0a4a96; --navy:#012a57; --btn:#012a57; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#07121f; --card:#0e2038; --ink:#eef3fa; --muted:#9db0c8; --line:#1d3452; --accent:#8dbbff; --btn:#2a6fd1; } }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
-  main { max-width:760px; margin:0 auto; padding:24px 16px 56px; }
-  h1 { margin:0; font-size:28px; letter-spacing:-.02em; }
-  .sub { color:var(--muted); margin:2px 0 18px; }
-  nav { display:flex; gap:8px; margin-bottom:16px; }
-  nav button { flex:1; padding:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:10px; font:inherit; cursor:pointer; }
-  nav button[aria-selected="true"] { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; font-weight:600; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
-  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
-  input, textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; }
-  .row > input { flex:1; min-width:180px; }
-  button.primary { padding:10px 16px; border:0; border-radius:10px; background:var(--btn); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
-  button.ghost { padding:10px 16px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); font:inherit; cursor:pointer; }
-  button.chip { padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--ink); font:inherit; font-size:14px; cursor:pointer; }
-  .light { display:flex; align-items:center; gap:14px; }
-  .dot { width:56px; height:56px; border-radius:50%; flex:none; background:var(--muted); }
-  .dot.green { background:var(--green); } .dot.yellow { background:var(--yellow); } .dot.red { background:var(--red); }
-  .verdict { font-size:22px; font-weight:700; text-transform:capitalize; }
-  .finding { border-left:4px solid var(--line); padding:6px 0 6px 12px; margin:10px 0; }
-  .finding.green { border-color:var(--green); } .finding.yellow { border-color:var(--yellow); } .finding.red { border-color:var(--red); }
-  .finding b { display:block; }
-  .small { font-size:13px; color:var(--muted); }
-  .code { font:14px ui-monospace,Menlo,monospace; word-break:break-all; background:var(--bg); padding:8px; border-radius:8px; border:1px solid var(--line); }
-  .lock { background:linear-gradient(160deg,#111827,#1f2a44); color:#fff; border-radius:24px; padding:28px 20px; text-align:center; }
-  .lock .time { font-size:56px; font-weight:300; }
-  .lock .sos { background:rgba(255,255,255,.12); border-radius:14px; padding:12px; margin-top:16px; text-align:left; font-size:14px; }
-  [hidden] { display:none !important; }
-.brand { background:linear-gradient(135deg,#012a57,#013369); border-bottom:1px solid rgba(255,255,255,.08); }
-  .brand-in { max-width:760px; margin:0 auto; padding:10px 16px; }
-  .brand img { display:block; height:60px; width:auto; }
-  .sr { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
-</style>
+<link rel="stylesheet" href="/assets/medipass.css?v=2">
 </head>
 <body>
-<header class="brand"><div class="brand-in"><a href="/app" aria-label="MediPass"><img src="/assets/logo.png" alt="MediPass" width="163" height="60"></a></div></header>
+<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app" aria-current="page">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav></div></header>
 <main>
   <h1 class="sr">MediPass</h1>
   <p class="sub">Does this medicine work for me, and is it safe? A traffic light in seconds.</p>
-  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"><a href="/app" style="padding:7px 14px;border:1px solid var(--accent);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px;font-weight:600">Check</a><a href="/agent" style="padding:7px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px">Agent</a><a href="/doctor" style="padding:7px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px">Doctor</a><a href="/vision" style="padding:7px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px">Vision</a></div>
-  <nav role="tablist">
-    <button role="tab" id="t-check" aria-selected="true">Check</button>
-    <button role="tab" id="t-profile" aria-selected="false">My profile</button>
-    <button role="tab" id="t-emergency" aria-selected="false">Emergency</button>
+  <nav role="tablist" aria-label="Sections">
+    <button role="tab" id="t-check" aria-selected="true" aria-controls="p-check">Check</button>
+    <button role="tab" id="t-profile" aria-selected="false" aria-controls="p-profile">My profile</button>
+    <button role="tab" id="t-emergency" aria-selected="false" aria-controls="p-emergency">Emergency</button>
   </nav>
 
-  <section id="p-check">
-    <div class="card" id="scanCard">
-      <b>Scan a package</b>
-      <p class="small" style="margin:2px 0 10px">Take a photo of the box and MediPass reads the name, or scan the barcode.</p>
+  <section id="p-check" role="tabpanel" aria-labelledby="t-check">
+    <div class="card">
+      <label class="ask" for="medicine">Which medicine do you want to check?</label>
       <div class="row">
-        <button class="primary" id="photoBtn">Take or choose a photo</button>
+        <input id="medicine" class="big" placeholder="Name or brand, for example Ibuprofen" autocomplete="off">
+        <button class="primary" id="go">Check</button>
+      </div>
+      <div class="row" style="margin-top:12px"><span class="try">Try</span><span class="row" id="quick" style="gap:8px"></span></div>
+      <label for="lang-en">Explanation language</label>
+      <div class="seg" role="group" aria-label="Explanation language"><button class="chip" id="lang-en" aria-pressed="true">English</button><button class="chip" id="lang-de" aria-pressed="false">Deutsch</button></div>
+    </div>
+    <div class="card" id="scanCard">
+      <span class="card-title">Or scan the package</span>
+      <p class="small card-intro">Take a photo of the box and MediPass reads the name, or scan the barcode.</p>
+      <div class="row">
+        <button class="ghost" id="photoBtn">Take or choose a photo</button>
         <button class="ghost" id="barcodeBtn">Scan barcode</button>
         <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
       </div>
-      <video id="cam" playsinline muted hidden style="width:100%;max-height:320px;border-radius:10px;margin-top:10px;background:#000"></video>
-      <div id="scanOut" style="margin-top:10px"></div>
-      <p class="small" style="margin:8px 0 0">The photo is sent to an AI model once, to read the name on the box, and is not stored. Barcodes are read on your device. You always confirm what was read before a traffic light is shown.</p>
+      <video id="cam" playsinline muted hidden style="width:100%;max-height:320px;border-radius:8px;margin-top:14px;background:#000"></video>
+      <div id="scanOut" aria-live="polite"></div>
+      <p class="small" style="margin:14px 0 0;max-width:40rem">The photo is sent to an AI model once, to read the name on the box, and is not stored. Barcodes are read on your device. You always confirm what was read before a traffic light is shown.</p>
     </div>
-    <div class="card">
-      <label for="medicine">Medicine (name or brand)</label>
-      <div class="row">
-        <input id="medicine" placeholder="e.g. Ibuprofen" autocomplete="off">
-        <button class="primary" id="go">Check</button>
+    <div class="card" id="result" hidden aria-live="polite">
+      <div class="light">
+        <div class="dot" id="dot" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="light-text"><div id="medname"></div><div class="verdict" id="verdict"></div><div class="meaning" id="meaning"></div></div>
       </div>
-      <div class="row" style="margin-top:10px" id="quick"></div>
-      <label for="lang">Explanation language</label>
-      <div class="row"><button class="chip" id="lang-en" aria-pressed="true">English</button><button class="chip" id="lang-de" aria-pressed="false">Deutsch</button></div>
-    </div>
-    <div class="card">
-      <div class="row"><button class="primary" id="reviewBtn">Review my medicines</button><span class="small">Checks everything you already take against your genes, allergies and kidney values.</span></div>
-      <div id="review" style="margin-top:10px"></div>
-    </div>
-    <div class="card" id="result" hidden>
-      <div class="light"><div class="dot" id="dot"></div><div><div class="verdict" id="verdict"></div><div class="small" id="medname"></div></div></div>
       <p id="explanation" hidden></p>
       <div id="findings"></div>
       <div id="notes" class="small"></div>
       <div class="row" style="margin-top:12px"><button class="primary" id="release">Release for pharmacy</button></div>
-      <div id="released" hidden style="margin-top:12px">
+      <div id="released" hidden style="margin-top:16px">
         <div class="small">Shows only the warnings, never your profile. Valid for 15 minutes.</div>
         <div class="code" id="code"></div>
         <p class="small"><a id="plink" target="_blank" rel="noopener">Open the pharmacy view</a></p>
       </div>
     </div>
+    <div class="card">
+      <span class="card-title">Review what you already take</span>
+      <p class="small card-intro">Checks everything you already take against your genes, allergies and kidney values.</p>
+      <div class="row"><button class="ghost" id="reviewBtn">Review my medicines</button></div>
+      <div id="review" style="margin-top:6px"></div>
+    </div>
   </section>
 
-  <section id="p-profile" hidden>
-    <div class="card">
+  <section id="p-profile" role="tabpanel" aria-labelledby="t-profile" hidden>
+    <div class="card" style="max-width:36rem">
       <p class="small">Demo profile of Anna, 58 (all values invented, the gene and drug links follow public guidelines). Medication list, allergies and gene results would come from the patient record and a genetic report. Everything stays in your browser until you press Check.</p>
       <label for="meds">Current medicines (comma separated)</label><input id="meds" value="Clopidogrel, Simvastatin, Ramipril">
       <label for="allergies">Allergies (e.g. penicillin, NSAID)</label><input id="allergies" value="Penicillin">
@@ -109,7 +77,7 @@
     </div>
   </section>
 
-  <section id="p-emergency" hidden>
+  <section id="p-emergency" role="tabpanel" aria-labelledby="t-emergency" hidden>
     <div class="lock">
       <div class="time">9:41</div>
       <div>Emergency information</div>
@@ -120,10 +88,10 @@
         Contact in an emergency, her daughter (demo number).
       </div>
     </div>
-    <p class="small">Concept screen. In the app this card is readable from the lock screen without unlocking.</p>
+    <p class="small" style="text-align:center">Concept screen. In the app this card is readable from the lock screen without unlocking.</p>
   </section>
 
-  <p class="small">MediPass does not replace advice from a doctor or pharmacist. Demo rule set, not a validated database.</p>
+  <p class="disclaimer">MediPass does not replace advice from a doctor or pharmacist. Demo rule set, not a validated database.</p>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -143,6 +111,7 @@ function profile() {
   const egfr = parseFloat($("egfr").value);
   return { medications: list("meds"), allergies: list("allergies"), conditions: list("conditions"), genotype, labs: Number.isFinite(egfr) ? { egfr } : {}, symptoms: list("symptoms") };
 }
+const meanings = { green: "No concerns found in the data checked.", yellow: "Take care. Read the points below before you use it.", red: "Not advised for you. Talk to a doctor or pharmacist first.", unknown: "This medicine is not in the demo rule set, so it was not checked." };
 const body = () => ({ medicine: $("medicine").value.trim(), profile: profile(), explain: true, lang });
 
 async function run() {
@@ -160,6 +129,7 @@ function show(d) {
   $("result").hidden = false; $("released").hidden = true;
   $("dot").className = "dot " + (d.verdict === "unknown" ? "" : d.verdict);
   $("verdict").textContent = d.verdict === "unknown" ? "No verdict" : d.verdict;
+  $("meaning").textContent = meanings[d.verdict] || meanings.unknown;
   $("medname").textContent = d.medicine || "";
   $("explanation").hidden = !d.explanation; $("explanation").textContent = d.explanation || "";
   $("findings").replaceChildren(...d.findings.map((f) => {

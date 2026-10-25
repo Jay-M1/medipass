@@ -6,20 +6,19 @@
 <title>MediPass Agent</title>
 <link rel="icon" href="/assets/favicon.png" type="image/png">
 <meta name="theme-color" content="#012a57">
-<link rel="stylesheet" href="/assets/medipass.css">
+<link rel="stylesheet" href="/assets/medipass.css?v=2">
 </head>
 <body>
-<header class="brand"><div class="brand-in"><a href="/app" aria-label="MediPass"><img src="/assets/logo.png" alt="MediPass" width="163" height="60"></a></div></header>
+<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app">Check</a><a href="/agent" aria-current="page">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav></div></header>
 <main>
   <h1 class="sr">MediPass</h1>
   <p class="sub">Tell the agent what is wrong. It checks your record and your ring, then orders safely.</p>
-  <nav class="top"><a href="/app">Check</a><a href="/agent" aria-current="page">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav>
 
   <div class="card">
-    <label for="prompt">What do you need</label>
-    <textarea id="prompt">I have a very strong headache, please get me headache tablets.</textarea>
-    <div class="row" style="margin-top:8px" id="examples"></div>
-    <div class="row" style="margin-top:12px"><button class="primary" id="go">Send to agent</button><span class="small" id="status"></span></div>
+    <label class="ask" for="prompt">What do you need?</label>
+    <textarea id="prompt" class="big">I have a very strong headache, please get me headache tablets.</textarea>
+    <div class="row" style="margin-top:12px;gap:8px" id="examples"><span class="try">Try</span></div>
+    <div class="row" style="margin-top:18px"><button class="primary" id="go">Send to agent</button><span class="small" id="status" aria-live="polite"></span></div>
   </div>
 
   <details class="card">
@@ -36,7 +35,7 @@
     <p class="small">Simulated ring readings. A real build would read them from the ring's app or a health platform.</p>
   </details>
 
-  <div id="out" hidden>
+  <div id="out" hidden aria-live="polite">
     <div class="banner" id="banner"></div>
     <p id="reply" style="margin-top:0"></p>
     <div class="card" id="steps"></div>
@@ -45,7 +44,7 @@
     <div class="card" id="wait-card" hidden></div>
     <p class="small" id="notes"></p>
   </div>
-  <p class="small">MediPass does not replace advice from a doctor or pharmacist. Demo rule set, devnet test money, no real orders.</p>
+  <p class="disclaimer">MediPass does not replace advice from a doctor or pharmacist. Demo rule set, devnet test money, no real orders.</p>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);

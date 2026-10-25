@@ -6,23 +6,22 @@
 <title>MediPass Vision</title>
 <link rel="icon" href="/assets/favicon.png" type="image/png">
 <meta name="theme-color" content="#012a57">
-<link rel="stylesheet" href="/assets/medipass.css">
+<link rel="stylesheet" href="/assets/medipass.css?v=2">
 </head>
-<body>
-<header class="brand"><div class="brand-in"><a href="/app" aria-label="MediPass"><img src="/assets/logo.png" alt="MediPass" width="163" height="60"></a></div></header>
+<body class="doc">
+<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision" aria-current="page">Vision</a></nav></div></header>
 <main>
   <h1 class="sr">MediPass</h1>
   <p class="sub">From a safe check today to medicine made for one person tomorrow.</p>
-  <nav class="top"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision" aria-current="page">Vision</a></nav>
 
   <div class="card">
     <span class="tag">The idea</span>
-    <p style="margin:6px 0 0">One personal health record, kept by the patient, that an AI agent can use to pick and buy the right medicine at the right moment. It reads your medicines, allergies, conditions, gene results and live data from a ring or band. A doctor stays in the loop for prescriptions. Payments between agent, doctor and pharmacy happen automatically on Solana.</p>
+    <p class="lead">One personal health record, kept by the patient, that an AI agent can use to pick and buy the right medicine at the right moment. It reads your medicines, allergies, conditions, gene results and live data from a ring or band. A doctor stays in the loop for prescriptions. Payments between agent, doctor and pharmacy happen automatically on Solana.</p>
   </div>
 
   <h2>Why it is different</h2>
   <div class="card">
-    <p style="margin:0 0 8px"><b>Other apps tell you what a medicine does. MediPass tells you what it does in you.</b></p>
+    <p class="kicker"><b>Other apps tell you what a medicine does. MediPass tells you what it does in you.</b></p>
     <div class="step"><div><b>Personal, not general</b><div class="small">A usual interaction checker compares one medicine with another. MediPass also uses gene results, so it can tell whether your body clears a drug fast, slowly or not at all. To our knowledge few consumer apps do this today.</div></div></div>
     <div class="step"><div><b>At the moment of the decision</b><div class="small">The warning appears when you buy or order, including over-the-counter medicines such as ibuprofen, which a prescription record does not contain.</div></div></div>
     <div class="step"><div><b>One place, not four</b><div class="small">Medicines, allergies, kidney values, gene results and your own notes sit together instead of in a doctor's system, a lab report, a drawer and your memory.</div></div></div>
@@ -116,7 +115,7 @@
     <div class="step"><div><b>Trade offs</b><div class="small">Faster ordering must not mean lower quality of care, so red flags stop the order. Rules can be wrong or out of date, so every verdict names its source and says it does not replace a pharmacist. Rich health data can be misused, so we minimise what is shared. Cheap and fast access can push people to skip a conversation with a professional. Gene data can reveal family members, and access can be unequal.</div></div></div>
   </div>
 
-  <p class="small">MediPass does not replace advice from a doctor or pharmacist.</p>
+  <p class="disclaimer">MediPass does not replace advice from a doctor or pharmacist.</p>
 </main>
 </body>
 </html>

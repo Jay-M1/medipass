@@ -6,17 +6,17 @@
 <title>MediPass Doctor</title>
 <link rel="icon" href="/assets/favicon.png" type="image/png">
 <meta name="theme-color" content="#012a57">
-<link rel="stylesheet" href="/assets/medipass.css">
+<link rel="stylesheet" href="/assets/medipass.css?v=2">
 </head>
 <body>
-<header class="brand"><div class="brand-in"><a href="/app" aria-label="MediPass"><img src="/assets/logo.png" alt="MediPass" width="163" height="60"></a></div></header>
+<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor" aria-current="page">Doctor</a><a href="/vision">Vision</a></nav></div></header>
 <main>
   <h1 class="sr">MediPass</h1>
   <p class="sub">A doctor sees the record and the safety check, then approves or declines in seconds. No appointment.</p>
-  <nav class="top"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor" aria-current="page">Doctor</a><a href="/vision">Vision</a></nav>
-  <p class="small">Demo page without a login. A real version would only be open to verified clinicians.</p>
+  <p class="note">Demo page without a login. A real version would only be open to verified clinicians.</p>
+  <h2 class="queue">Waiting for you</h2>
   <div id="pending"></div>
-  <h2 style="font-size:17px">Decided</h2>
+  <h2 class="queue">Decided</h2>
   <div id="done"></div>
 </main>
 <script>
