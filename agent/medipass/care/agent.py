@@ -4,6 +4,7 @@ The decisions are rules, not model output. Over-the-counter medicines are ordere
 nothing looks urgent. Prescription medicines always wait for a doctor, who sees the profile and the check.
 """
 
+import asyncio
 import os
 import re
 import secrets
@@ -11,9 +12,11 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from agent.medipass import ai_check, release
 from agent.medipass.engine import SEVERITY, CheckResult, Profile, check
 from agent.medipass.knowledge import ALIASES
 
+from . import personal
 from .catalog import CATALOG, CONSULT_FEE_USDC, INTENTS, Product
 from .store import store
 from .triage import Triage, cautions, triage
@@ -89,8 +92,8 @@ async def settle(label: str, address: str | None, amount_usdc: float, memo: str)
     return {**base, "status": "paid", "signature": signature, "explorer": EXPLORER.format(signature)}
 
 
-async def fulfil(ingredient: str, request_id: str, with_consult_fee: bool) -> dict[str, Any]:
-    product = CATALOG[ingredient]
+async def fulfil(ingredient: str, request_id: str, with_consult_fee: bool, product: Product | None = None) -> dict[str, Any]:
+    product = product or CATALOG[ingredient]
     payments = []
     if with_consult_fee:
         payments.append(await settle("doctor", os.environ.get("MEDIPASS_DOCTOR_ADDRESS"), CONSULT_FEE_USDC, f"medipass:review:{request_id}"))
@@ -140,6 +143,57 @@ async def _ask_doctor_about_antibiotic(prompt: str, profile: Profile, wearable: 
     return _result(prompt, "infection", tri, steps, [], "doctor_review", reply, requestId=request_id, notes=notes)
 
 
+async def _personalised(prompt: str, unknown_named: str | None, profile: Profile, wearable: dict[str, Any], tri: Any, steps: list[dict[str, str]], notes: list[str], auto_buy: bool, via: str) -> dict[str, Any]:
+    """A complaint outside the fast paths, or a medicine the rules do not know. The model lists the standard options and every one
+    is judged against this record. The best one is ordered, proposed or sent to a doctor. Demo only, nothing is ordered for real."""
+    if unknown_named:
+        options = [{"ingredient": re.sub(r"\s+", " ", unknown_named).strip().lower()[:60], "otc": None, "reason": "You asked for it."}]
+        steps.append({"title": "Understand the request", "detail": f"You asked for {unknown_named}, which is not in our rule set.{via}"})
+    else:
+        options = await personal.shortlist(prompt)
+        if not options:
+            reply = "I could not tell which medicine would help. Describe the complaint a little more, or see a doctor if it is not going away."
+            return _result(prompt, None, tri, steps, [], "unknown", reply, notes=notes)
+        steps.append({"title": "Standard options for this complaint", "detail": ", ".join(o["ingredient"] for o in options) + f".{via}"})
+    evaluated = list(await asyncio.gather(*(personal.evaluate(o, profile) for o in options)))
+    order = sorted(range(len(evaluated)), key=lambda i: (SEVERITY.get(evaluated[i]["verdict"], 3), len(evaluated[i]["findings"]), i))
+    candidates = [{**evaluated[i], "prescription": evaluated[i]["otc"] is not True} for i in order]
+    steps.append({"title": "Check every option against your record", "detail": ", ".join(f"{c['ingredient']} {c['verdict']}" for c in candidates)})
+    usable = [c for c in candidates if c["verdict"] in ("green", "yellow")]
+    if not usable:
+        unknown = all(c["verdict"] == "unknown" for c in candidates)
+        reply = ("I could not assess that medicine right now. Try again, or ask a pharmacist." if unknown
+                 else "None of the usual options is safe for your record. " + "; ".join(f"{c['ingredient']}, {c['warnings'][0]}" for c in candidates if c["warnings"])[:300] + ". Please ask your doctor or pharmacist.")
+        return _result(prompt, None, tri, steps, candidates, "unknown" if unknown else "advise", reply, notes=notes + [NOT_CHECKED])
+
+    best = usable[0]
+    otc = best["otc"] is True
+    reasons = personal.why(best, profile)
+    caution = best["warnings"] if best["verdict"] == "yellow" else []
+    product = personal.product_for(best["ingredient"], otc, best["price_usdc"])
+    extra: dict[str, Any] = {"why": reasons, "notes": notes + [NOT_CHECKED]}
+    if not otc:
+        request_id = secrets.token_hex(4)
+        record = {"id": request_id, "status": "pending", "createdAt": time.time(), "prompt": prompt, "ingredient": best["ingredient"], "product": product.label, "priceUsdc": product.price_usdc, "profile": _summary(profile), "wearable": wearable,
+                  "check": {"verdict": best["verdict"], "medicine": best["ingredient"], "findings": best["findings"], "notes": ["Chosen by MediPass for the complaint and checked against the record. The doctor decides."]}, "decision": None, "order": None}
+        await store.put(record)
+        steps.append({"title": "Prescription needed", "detail": "Sent to a doctor for a quick yes or no. No appointment is needed."})
+        reply = f"The best match for your record is {best['ingredient']}, and it needs a doctor's approval. I sent your record and the check to a doctor. Once they approve, I pay the doctor and the pharmacy and arrange delivery."
+        return _result(prompt, None, tri, steps, candidates, "doctor_review", reply, requestId=request_id, **extra)
+    if best["verdict"] == "green" and auto_buy:
+        request_id = secrets.token_hex(4)
+        order = await fulfil(best["ingredient"], request_id, with_consult_fee=False, product=product)
+        steps.append({"title": "Order and pay", "detail": f"Ordered {product.label}. {_payment_summary(order['payments'])}"})
+        reply = f"I ordered {product.label}. It is the best match for your complaint and your record."
+        return _result(prompt, None, tri, steps, candidates, "order", reply, order=order, **extra)
+    token = release.sign_offer(best["ingredient"], True, ai_check.record_hash(profile))
+    steps.append({"title": "Waiting for you", "detail": "This is a proposal. Nothing is ordered until you press buy."})
+    reply = (f"I suggest {product.label}. It is the best match for your complaint and your record." if not caution
+             else f"The best match is {product.label}, but there are cautions, {'; '.join(caution[:2])}. Read them before you decide.")
+    proposal = {"ingredient": best["ingredient"], "label": product.label, "price_usdc": product.price_usdc, "caution": caution, "token": token}
+    return _result(prompt, None, tri, steps, candidates, "proposal", reply, proposal=proposal, **extra)
+
+
 async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understand: Understand | None = None, auto_buy: bool = True) -> dict[str, Any]:
     """`understand` is the model's reading of the sentence. Without it only the keyword rules are used.
 
@@ -180,6 +234,8 @@ async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understan
             intent, by_model = reading["intent"], True
     via = " (understood with the AI model)" if by_model else ""
     notes = _context_notes(wearable) if intent in ("headache", "fever", "pain") else []
+    if reading and reading.get("medicine") and named is None:
+        return await _personalised(prompt, reading["medicine"], profile, wearable, tri, steps, notes, auto_buy, via)
     if intent == "infection" and not (named and named in CATALOG):
         steps.append({"title": "Understand the request", "detail": f"This looks like an infection.{via}"})
         return await _ask_doctor_about_antibiotic(prompt, profile, wearable, tri, steps, notes)
@@ -189,6 +245,8 @@ async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understan
     elif intent:
         products = [p for p in CATALOG.values() if intent in p.treats]
         steps.append({"title": "Understand the request", "detail": f"This looks like {intent}.{via} Checking {len(products)} over-the-counter options against your record."})
+    elif reading is not None:
+        return await _personalised(prompt, None, profile, wearable, tri, steps, notes, auto_buy, via)
     else:
         reply = "I could not tell which medicine you need. Tell me a symptom such as a headache or heartburn, or name a medicine, and I will check it against your record."
         return _result(prompt, None, tri, steps, [], "unknown", reply)
@@ -235,7 +293,8 @@ async def decide(request_id: str, decision: str, note: str) -> dict[str, Any] | 
         return record
     record["decision"] = {"verdict": decision, "note": note[:300], "at": time.time()}
     if decision == "approve":
-        record["order"] = await fulfil(record["ingredient"], request_id, with_consult_fee=True)
+        product = None if record["ingredient"] in CATALOG else Product(record["ingredient"], record["product"], record.get("priceUsdc", personal.DEMO_PRICE_USDC), True, ())
+        record["order"] = await fulfil(record["ingredient"], request_id, with_consult_fee=True, product=product)
         record["status"] = "approved"
     else:
         record["status"] = "rejected"
@@ -243,14 +302,24 @@ async def decide(request_id: str, decision: str, note: str) -> dict[str, Any] | 
     return record
 
 
-async def buy(ingredient: str, profile: Profile) -> dict[str, Any]:
-    """Orders an over-the-counter medicine after the person pressed buy. The safety check runs again here, so a client cannot skip it."""
+async def buy(ingredient: str, profile: Profile, token: str | None = None, accept_caution: bool = False) -> dict[str, Any]:
+    """Orders an over-the-counter medicine after the person pressed buy. The safety check runs again here, so a client cannot skip it.
+    A medicine outside the fixed catalog needs a signed offer that the agent made for this very record."""
     product = CATALOG.get(ingredient)
-    if product is None or product.prescription:
-        raise ValueError("Only over-the-counter medicines can be bought directly. A doctor has to approve the rest.")
-    verdict = check(ingredient, profile).verdict
-    if verdict != "green":
-        raise ValueError(f"Not ordered. The safety check for {ingredient} is {verdict}.")
+    if product is not None:
+        if product.prescription:
+            raise ValueError("Only over-the-counter medicines can be bought directly. A doctor has to approve the rest.")
+        verdict = check(ingredient, profile).verdict
+    else:
+        offer = release.read_offer(token or "")
+        if not offer or offer["ingredient"] != ingredient or offer["recordHash"] != ai_check.record_hash(profile):
+            raise ValueError("Not ordered. This offer is not valid any more. Ask the agent again.")
+        if not offer["otc"]:
+            raise ValueError("Only over-the-counter medicines can be bought directly. A doctor has to approve the rest.")
+        verdict = (await personal.evaluate({"ingredient": ingredient, "otc": True}, profile))["verdict"]
+        product = personal.product_for(ingredient, True)
+    if verdict != "green" and not (verdict == "yellow" and accept_caution):
+        raise ValueError(f"Not ordered. The safety check for {ingredient} is {verdict}." + (" Confirm that you want it anyway." if verdict == "yellow" else ""))
     request_id = secrets.token_hex(4)
-    order = await fulfil(ingredient, request_id, with_consult_fee=False)
+    order = await fulfil(ingredient, request_id, with_consult_fee=False, product=product)
     return {"order": order, "reply": f"Ordered {product.label}. {_payment_summary(order['payments'])}"}

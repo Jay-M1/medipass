@@ -444,10 +444,12 @@ h2.queue { font-size: 22px; margin: 36px 0 6px; }
 
 /* ---------- who MediPass is connected to ---------- */
 .who { background: rgba(0, 12, 30, .28); border-top: 1px solid rgba(255, 255, 255, .1); }
-.who-in { max-width: var(--page); margin: 0 auto; padding: 7px 16px; font-size: var(--t-xs); color: rgba(255, 255, 255, .84); letter-spacing: .01em; }
+.who-in { max-width: var(--page); margin: 0 auto; padding: 7px 16px; font-size: var(--t-xs); color: rgba(255, 255, 255, .84); letter-spacing: .01em; display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
 .doc .who-in { max-width: 820px; }
 .who-in::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 9px; border-radius: 50%; background: #5fd39a; vertical-align: 1px; }
-.who b { color: #fff; font-weight: 600; }
+.who-main { color: #fff; font-weight: 600; }
+.who-note { color: rgba(255, 255, 255, .84); font-weight: 400; }
+.who-name { color: rgba(255, 255, 255, .7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- good and to watch ---------- */
 .lists { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 40px; margin-top: 22px; }
@@ -469,3 +471,34 @@ details.how { margin: 14px 0 0; }
 details.how summary { cursor: pointer; font-size: var(--t-sm); color: var(--muted); }
 
 .aibadge { display: inline-block; margin: 0 0 8px; padding: 2px 9px; border: 1px solid var(--accent); border-radius: 3px; color: var(--accent); font-family: var(--sans); font-size: var(--t-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+
+/* ---------- iPhone, 14 Pro Max is 430 by 932 points with the Dynamic Island and the home indicator ---------- */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { -webkit-tap-highlight-color: transparent; padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); overscroll-behavior-y: none; }
+button, a, input, textarea, label { touch-action: manipulation; }
+/* the navy header runs under the status bar and the island, its content starts below them */
+.brand { padding-top: env(safe-area-inset-top); }
+.brand-in { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.who-in { flex-wrap: wrap; row-gap: 2px; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+main { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+@media (pointer: coarse) {
+  button, .chip, nav.top a, select { min-height: 44px; }
+  input, textarea { min-height: 48px; font-size: max(16px, 1em); } /* 16 pixels or more, so Safari does not zoom into the field */
+  .chip { padding-top: 8px; padding-bottom: 8px; }
+}
+/* on a phone the page links become a tab bar at the thumb, above the home indicator */
+@media (max-width: 600px) {
+  .brand-in { justify-content: flex-start; }
+  nav.top {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; gap: 0;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    background: #012a57; border-top: 1px solid rgba(255, 255, 255, .16);
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  nav.top a { display: flex; align-items: center; justify-content: center; min-height: 52px; padding: 0; border-bottom: 0; border-top: 2px solid transparent; font-size: 14px; }
+  nav.top a[aria-current="page"] { border-top-color: #fff; border-bottom-color: transparent; }
+  body { padding-bottom: calc(52px + env(safe-area-inset-bottom) + 12px); }
+  .brand img { height: 48px; }
+  .who-in { font-size: 12px; }
+  .lists { gap: 4px; }
+}

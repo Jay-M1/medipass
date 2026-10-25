@@ -2,14 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MediPass">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="icon" href="/assets/favicon.png" type="image/png">
 <meta name="theme-color" content="#012a57">
 <title>MediPass</title>
 <link rel="stylesheet" href="/assets/medipass.css?v=2">
 </head>
 <body>
-<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app" aria-current="page">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav></div><div class="who"><div class="who-in">I am MediPass, connected to the personal data of <b id="who">Max Mustermann</b>.</div></div></header>
+<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app" aria-current="page">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav></div><div class="who"><div class="who-in"><span class="who-main">MediPass <span class="who-note">(connected to your electronic health record)</span></span><span class="who-name" id="who">Max Mustermann</span></div></div></header>
 <main>
   <h1 class="sr">MediPass</h1>
   <p class="sub">Does this medicine work for me, and is it safe? A traffic light in seconds.</p>
@@ -226,9 +232,15 @@ async function toJpeg(file, max = 1280) {
   canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
   return { bmp, dataUrl: canvas.toDataURL("image/jpeg", 0.85) };
 }
-async function readCode(source) {
-  if (!hasDetector) return null;
-  try { const found = await new BarcodeDetector().detect(source); return found.length ? found[0].rawValue : null; } catch { return null; }
+let zxingLoading = null;
+function loadZXing() {
+  if (window.ZXing) return Promise.resolve();
+  zxingLoading = zxingLoading || new Promise((ok, bad) => { const el = document.createElement("script"); el.src = "/assets/zxing.js"; el.onload = ok; el.onerror = () => { zxingLoading = null; bad(new Error("reader")); }; document.head.append(el); });
+  return zxingLoading;
+}
+async function readCode(source, dataUrl) {
+  if (hasDetector) { try { const found = await new BarcodeDetector().detect(source); return found.length ? found[0].rawValue : null; } catch { return null; } }
+  try { await loadZXing(); const result = await new ZXing.BrowserMultiFormatReader().decodeFromImageUrl(dataUrl); return result.getText(); } catch { return null; }
 }
 
 $("photoBtn").onclick = () => $("photoInput").click();
@@ -238,7 +250,7 @@ $("photoInput").onchange = async (event) => {
   scanSay("Reading the photo...");
   try {
     const { bmp, dataUrl } = await toJpeg(file);
-    const code = await readCode(bmp);
+    const code = await readCode(bmp, dataUrl);
     if (code) pendingCode = code;
     const res = await fetch("/api/medipass/scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ image: dataUrl }) });
     const data = await res.json();
@@ -254,8 +266,10 @@ $("photoInput").onchange = async (event) => {
   } finally { event.target.value = ""; }
 };
 
+let zxingReader = null;
 function stopCam() {
   clearInterval(camLoop); camLoop = null;
+  if (zxingReader) { try { zxingReader.reset(); } catch {} zxingReader = null; }
   if (camStream) camStream.getTracks().forEach((t) => t.stop());
   camStream = null; $("cam").hidden = true; $("barcodeBtn").textContent = "Scan barcode";
 }
@@ -266,11 +280,21 @@ function onCode(code) {
   scanSay(confirmBox("Barcode " + code + " read", "This code is not in the demo yet. Take one photo of the box and I will remember the code, so next time the barcode alone is enough.", null));
 }
 $("barcodeBtn").onclick = async () => {
-  if (camStream) return stopCam();
-  if (!hasDetector) return scanSay("This browser cannot read barcodes. Use the photo button, or open MediPass in Chrome on a phone.");
+  if (camStream || zxingReader) return stopCam();
+  const video = $("cam");
+  if (!hasDetector) {
+    // Safari on iPhone has no built in barcode reader, so the bundled library reads the camera picture.
+    try {
+      await loadZXing();
+      zxingReader = new ZXing.BrowserMultiFormatReader();
+      video.hidden = false; $("barcodeBtn").textContent = "Stop scanning"; scanSay("Hold the barcode in front of the camera.");
+      await zxingReader.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, video, (result) => { if (result) { const code = result.getText(); stopCam(); onCode(code); } });
+    } catch { stopCam(); scanSay("The camera or the barcode reader is not available. Allow camera access, or use the photo button."); }
+    return;
+  }
   try { camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } }); }
   catch { return scanSay("The camera is not available. Allow camera access, or use the photo button."); }
-  const video = $("cam"); video.srcObject = camStream; video.hidden = false; await video.play();
+  video.srcObject = camStream; video.hidden = false; await video.play();
   $("barcodeBtn").textContent = "Stop scanning"; scanSay("Hold the barcode in front of the camera.");
   const detector = new BarcodeDetector();
   camLoop = setInterval(async () => { try { const found = await detector.detect(video); if (found.length) { const code = found[0].rawValue; stopCam(); onCode(code); } } catch {} }, 300);
@@ -284,7 +308,7 @@ $("name").addEventListener("input", () => { const n = $("name").value.trim() || 
 
 // Ask the agent. It checks the record, may propose or buy, and sends prescription medicines to a doctor.
 const askLabels = { order: "Ordered", proposal: "Suggestion, waiting for you", doctor_review: "Waiting for a doctor", urgent: "Please get medical help now", advise: "Not ordered, advice only", unknown: "I need more information" };
-const askExamples = ["I have a headache, get me something.", "I have pain in my liver.", "I have a bladder infection, I need an antibiotic.", "Ich habe Sodbrennen, bestell mir etwas."];
+const askExamples = ["I have a headache since this morning, get me something.", "My eyes itch and my nose runs every spring.", "I have a bladder infection, I need an antibiotic.", "I have pain in my liver."];
 for (const t of askExamples) { const b = document.createElement("button"); b.className = "chip"; b.textContent = t.length > 38 ? t.slice(0, 36) + "..." : t; b.onclick = () => { $("ask").value = t; }; $("askChips").append(b); }
 let askTimer = null;
 const mk = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
@@ -314,22 +338,35 @@ function pollDoctor(id, slot, bannerEl) {
     } catch {}
   }, 2000);
 }
-async function buyNow(proposal, slot, button) {
+async function buyNow(proposal, slot, button, accept) {
   button.disabled = true;
   try {
-    const res = await fetch("/api/care/buy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ingredient: proposal.ingredient, profile: profile() }) });
+    const res = await fetch("/api/care/buy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ingredient: proposal.ingredient, profile: profile(), token: proposal.token, acceptCaution: accept }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Request failed");
     button.remove(); slot.append(orderBlock(data.order));
   } catch (e) { button.disabled = false; slot.append(mk("div", e.message, "small")); }
 }
+const sourceTag = (c) => (c.source === "ai" ? " (AI assessed)" : c.source === "rules" ? " (rules)" : "");
 function renderAsk(d) {
   const banner = mk("div", askLabels[d.decision] || d.decision, "banner " + d.decision), slot = mk("div"), nodes = [banner, mk("p", d.reply)];
-  if (d.proposal) { const buy = mk("button", "Buy now, " + d.proposal.price_usdc + " USDC", "primary"); buy.onclick = () => buyNow(d.proposal, slot, buy); nodes.push(buy); }
+  if (d.why && d.why.length) { const box = mk("div", "", "finding green"); box.append(mk("b", "Why this one")); for (const w of d.why) box.append(mk("div", w)); nodes.push(box); }
+  if (d.proposal) {
+    const caution = d.proposal.caution || [];
+    if (caution.length) { const box = mk("div", "", "finding yellow"); box.append(mk("b", "Cautions")); for (const c of caution) box.append(mk("div", c)); nodes.push(box); }
+    const buy = mk("button", (caution.length ? "Buy anyway, " : "Buy now, ") + d.proposal.price_usdc + " USDC", caution.length ? "ghost" : "primary");
+    buy.onclick = () => buyNow(d.proposal, slot, buy, caution.length > 0);
+    nodes.push(buy);
+  }
   if (d.order) nodes.push(orderBlock(d.order));
   if (d.decision === "doctor_review") { slot.append(mk("div", "A doctor is looking at your record. Open the Doctor page in another tab to approve it.", "small")); pollDoctor(d.requestId, slot, banner); }
   nodes.push(slot);
-  if (d.steps && d.steps.length) { const det = mk("details", "", "how"); det.append(mk("summary", "What the agent checked")); for (const [i, s] of d.steps.entries()) { const row = mk("div", "", "step"), body = mk("div"); body.append(mk("b", s.title), mk("div", s.detail, "small")); row.append(mk("div", String(i + 1), "n"), body); det.append(row); } nodes.push(det); }
+  if ((d.steps && d.steps.length) || (d.candidates && d.candidates.length)) {
+    const det = mk("details", "", "how"); det.append(mk("summary", "What the agent checked"));
+    for (const [i, s] of (d.steps || []).entries()) { const row = mk("div", "", "step"), body = mk("div"); body.append(mk("b", s.title), mk("div", s.detail, "small")); row.append(mk("div", String(i + 1), "n"), body); det.append(row); }
+    for (const c of d.candidates || []) { if (!c.verdict || c.verdict === "unknown") continue; const row = mk("div", "", "step"), body = mk("div"); body.append(mk("b", c.ingredient + ", " + c.verdict + sourceTag(c)), mk("div", c.warnings && c.warnings.length ? c.warnings.slice(0, 2).join(", ") : "Nothing found in the data checked.", "small")); row.append(mk("div", "•", "n"), body); det.append(row); }
+    nodes.push(det);
+  }
   $("askOut").replaceChildren(...nodes);
   $("askOut").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }

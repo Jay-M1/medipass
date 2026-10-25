@@ -2,6 +2,7 @@
 
 import asyncio
 import unittest
+from unittest.mock import patch
 from typing import Any
 
 import httpx
@@ -78,7 +79,11 @@ class ModelReadingTest(unittest.TestCase):
         self.assertEqual(out["decision"], "urgent")
 
     def test_a_medicine_the_model_invents_is_ignored(self) -> None:
-        out = asyncio.run(care.run("hello there", ANNA, None, reading(medicine="Wonderpill 9000")))
+        async def nothing(*_a: Any, **_k: Any) -> None:
+            return None
+
+        with patch("agent.medipass.ai_check.assess", nothing):
+            out = asyncio.run(care.run("hello there", ANNA, None, reading(medicine="Wonderpill 9000")))
         self.assertEqual(out["decision"], "unknown")
 
     def test_a_known_medicine_named_in_another_wording_is_accepted(self) -> None:
@@ -174,7 +179,114 @@ class BuyOptionTest(unittest.TestCase):
             asyncio.run(care.buy("nonsense", ANNA_FULL_PROFILE))
 
 
-class RouteTest(unittest.TestCase):
+def verdict_reply(verdict: str, otc: bool = True, findings: int = 0, good: list[str] | None = None) -> dict[str, Any]:
+    """What ai_check.assess returns for one medicine."""
+    return {"verdict": verdict, "medicine": "x", "findings": [{"light": "yellow", "kind": "ai", "title": f"Caution {i}", "detail": "d", "source": "AI assessment", "advice": "a"} for i in range(findings)],
+            "good": good or [], "otc": otc, "aiAssessed": True, "confidence": "high", "notes": [], "summary": "", "explanation": None}
+
+
+class HayFeverTest(unittest.TestCase):
+    def test_hay_fever_is_not_a_fever(self) -> None:
+        self.assertIsNone(care.detect_intent("it is hay fever"))
+        self.assertIsNone(care.detect_intent("Hay-fever season again"))
+        self.assertEqual(care.detect_intent("I have a fever"), "fever")
+        self.assertEqual(care.detect_intent("Ich habe Fieber"), "fever")
+
+
+class PersonalisedTest(unittest.TestCase):
+    """A complaint outside the fast paths. The model lists options, every option is judged against the record."""
+
+    def go(self, options: list[dict[str, Any]], verdicts: dict[str, dict[str, Any]], auto_buy: bool = True, profile: Profile = ANNA_FULL_PROFILE) -> dict[str, Any]:
+        async def shortlist(_text: str) -> list[dict[str, Any]]:
+            return options
+
+        async def assess(name: str, _profile: Any) -> dict[str, Any] | None:
+            reply = verdicts.get(name)
+            return {**reply, "medicine": name} if reply else None
+
+        with patch("agent.medipass.care.personal.shortlist", shortlist), patch("agent.medipass.ai_check.assess", assess):
+            return asyncio.run(care.run("My nose runs and my eyes itch every spring, it is hay fever", profile, None, reading(), auto_buy))
+
+    def test_the_best_checked_option_is_ordered(self) -> None:
+        out = self.go([{"ingredient": "loratadine", "otc": True, "reason": "x"}, {"ingredient": "cetirizine", "otc": True, "reason": "y"}],
+                      {"loratadine": verdict_reply("yellow", findings=1), "cetirizine": verdict_reply("green", good=["No clash with your medicines."])})
+        self.assertEqual(out["decision"], "order")
+        self.assertIn("Cetirizine", out["order"]["product"])
+        self.assertEqual([c["ingredient"] for c in out["candidates"]], ["cetirizine", "loratadine"])
+        self.assertTrue(any("gene results" in line for line in out["why"]))
+
+    def test_a_cautious_best_option_is_only_proposed_and_needs_a_second_yes(self) -> None:
+        out = self.go([{"ingredient": "loratadine", "otc": True, "reason": "x"}], {"loratadine": verdict_reply("yellow", findings=2)})
+        self.assertEqual((out["decision"], out.get("order")), ("proposal", None))
+        proposal = out["proposal"]
+        self.assertEqual(len(proposal["caution"]), 2)
+
+        async def assess(name: str, _p: Any) -> dict[str, Any]:
+            return {**verdict_reply("yellow", findings=2), "medicine": name}
+
+        with patch("agent.medipass.ai_check.assess", assess):
+            with self.assertRaises(ValueError):
+                asyncio.run(care.buy("loratadine", ANNA_FULL_PROFILE, proposal["token"]))
+            bought = asyncio.run(care.buy("loratadine", ANNA_FULL_PROFILE, proposal["token"], True))
+        self.assertEqual(bought["order"]["status"], "confirmed")
+
+    def test_with_auto_buy_off_even_a_green_option_waits_for_the_button(self) -> None:
+        out = self.go([{"ingredient": "cetirizine", "otc": True, "reason": "x"}], {"cetirizine": verdict_reply("green")}, auto_buy=False)
+        self.assertEqual((out["decision"], out["proposal"]["caution"]), ("proposal", []))
+
+    def test_a_prescription_option_goes_to_a_doctor_and_is_bought_after_approval(self) -> None:
+        out = self.go([{"ingredient": "cefalexin", "otc": False, "reason": "x"}], {"cefalexin": verdict_reply("green", otc=False)})
+        self.assertEqual((out["decision"], out.get("order")), ("doctor_review", None))
+        record = asyncio.run(care.decide(out["requestId"], "approve", "ok"))
+        self.assertEqual(record["order"]["product"], "Cefalexin (generic)")
+        self.assertEqual([p["label"] for p in record["order"]["payments"]], ["doctor", "pharmacy"])
+
+    def test_nothing_is_ordered_when_every_option_is_red(self) -> None:
+        out = self.go([{"ingredient": "naproxen", "otc": True, "reason": "x"}], {"naproxen": verdict_reply("red", findings=1)})
+        self.assertEqual((out["decision"], out.get("order"), out.get("proposal")), ("advise", None, None))
+
+    def test_when_the_model_cannot_assess_it_says_so(self) -> None:
+        out = self.go([{"ingredient": "cetirizine", "otc": True, "reason": "x"}], {})
+        self.assertEqual(out["decision"], "unknown")
+
+    def test_an_empty_shortlist_asks_for_more_detail(self) -> None:
+        self.assertEqual(self.go([], {})["decision"], "unknown")
+
+    def test_a_medicine_you_name_that_the_rules_do_not_know_is_judged_and_routed(self) -> None:
+        async def assess(name: str, _p: Any) -> dict[str, Any]:
+            return {**verdict_reply("yellow", otc=False, findings=1), "medicine": "amiodarone"}
+
+        with patch("agent.medipass.ai_check.assess", assess):
+            out = asyncio.run(care.run("Please order Amiodarone", ANNA_FULL_PROFILE, None, reading(medicine="Amiodarone")))
+        self.assertEqual((out["decision"], out["requestId"] is not None), ("doctor_review", True))
+
+    def test_offers_cannot_be_forged_replayed_for_another_record_or_used_for_a_prescription(self) -> None:
+        good = self.go([{"ingredient": "cetirizine", "otc": True, "reason": "x"}], {"cetirizine": verdict_reply("green")}, auto_buy=False)["proposal"]["token"]
+        other = parse_profile({"medications": ["Warfarin"]})
+        for token, who, name in ((good + "x", ANNA_FULL_PROFILE, "cetirizine"), (good, other, "cetirizine"), (good, ANNA_FULL_PROFILE, "naproxen"), (None, ANNA_FULL_PROFILE, "cetirizine")):
+            with self.assertRaises(ValueError):
+                asyncio.run(care.buy(name, who, token))
+        from agent.medipass import release
+
+        rx = release.sign_offer("cefalexin", False, care.ai_check.record_hash(ANNA_FULL_PROFILE))
+        with self.assertRaises(ValueError):
+            asyncio.run(care.buy("cefalexin", ANNA_FULL_PROFILE, rx))
+
+    def test_a_pharmacy_code_and_an_offer_cannot_stand_in_for_each_other(self) -> None:
+        from agent.medipass import release
+        from agent.medipass.engine import check
+
+        self.assertIsNone(release.read(release.sign_offer("x", True, "h")))
+        self.assertIsNone(release.read_offer(release.issue(check("Ibuprofen", Profile(medications=("Clopidogrel",))))))
+
+    def test_controlled_drugs_are_never_offered(self) -> None:
+        from agent.medipass.care.personal import clean_options
+
+        out = clean_options({"options": [{"ingredient": "Codeine", "otc": False}, {"ingredient": "tramadol"}, {"ingredient": "Diazepam"}, {"ingredient": "ibuprofen", "otc": True}, {"ingredient": "ibuprofen"}, "junk", {"ingredient": 5}]})
+        self.assertEqual([o["ingredient"] for o in out], ["ibuprofen"])
+
+
+class IntentTest(unittest.TestCase):
     def test_detects_intent_and_named_medicine(self) -> None:
         self.assertEqual(care.detect_intent("Ich habe sehr starke Kopfschmerzen"), "headache")
         self.assertEqual(care.named_medicine("please order Nurofen for me"), "ibuprofen")

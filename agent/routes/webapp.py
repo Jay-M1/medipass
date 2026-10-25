@@ -42,7 +42,7 @@ def register(app: FastAPI) -> None:
 
     @app.get("/assets/{name}")
     async def asset(name: str) -> Response:
-        files = {"logo.png": ("logo.png", "image/png"), "favicon.png": ("favicon.png", "image/png"), "medipass.css": ("shared.css", "text/css")}
+        files = {"logo.png": ("logo.png", "image/png"), "favicon.png": ("favicon.png", "image/png"), "medipass.css": ("shared.css", "text/css"), "apple-touch-icon.png": ("apple-touch-icon.png", "image/png"), "zxing.js": ("zxing.min.js", "text/javascript")}
         if name not in files:
             return Response("Not found", status_code=404)
         file, kind = files[name]

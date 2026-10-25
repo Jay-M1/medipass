@@ -50,7 +50,8 @@ def register(app: FastAPI) -> None:
         try:
             if not isinstance(ingredient, str) or not isinstance(raw_profile, dict):
                 raise ValueError('Send { "ingredient": "paracetamol", "profile": { ... } }')
-            return JSONResponse(await care.buy(ingredient, parse_profile(raw_profile)))
+            token = body.get("token") if isinstance(body.get("token"), str) else None
+            return JSONResponse(await care.buy(ingredient, parse_profile(raw_profile), token, body.get("acceptCaution") is True))
         except ValueError as err:
             return JSONResponse({"error": str(err)}, status_code=409 if str(err).startswith(("Not ordered", "Only over")) else 400)
 

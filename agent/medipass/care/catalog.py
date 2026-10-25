@@ -31,7 +31,7 @@ CATALOG: dict[str, Product] = {p.ingredient: p for p in (
 INTENTS: tuple[tuple[str, str], ...] = (
     ("infection", r"infect|infekt|antibiot|bacteri|bakteri|sinusitis|bladder infection|blasenentz|halsentz|mandelentz|ohrenentz|bronchitis|pneumonia|lungenentz|eitrig"),
     ("headache", r"headache|migraine|kopfschmerz|kopfweh|migräne|migraene|head (hurts|aches|is pounding|is throbbing)|pounding head|(schädel|schaedel|kopf) (brummt|dröhnt|droehnt|hämmert|haemmert|pocht|tut weh)|brummschädel|brummschaedel"),
-    ("fever", r"fever|temperature|fieber"),
+    ("fever", r"(?<!hay )(?<!hay-)fever|temperature|fieber"),
     ("heartburn", r"heartburn|acid reflux|sodbrennen|reflux|stomach acid|magensäure"),
     ("pain", r"\bpain\b|\bache\b|schmerz"),
 )

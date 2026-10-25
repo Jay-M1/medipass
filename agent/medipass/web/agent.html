@@ -2,14 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MediPass">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <title>MediPass Agent</title>
 <link rel="icon" href="/assets/favicon.png" type="image/png">
 <meta name="theme-color" content="#012a57">
 <link rel="stylesheet" href="/assets/medipass.css?v=2">
 </head>
 <body>
-<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app">Check</a><a href="/agent" aria-current="page">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav></div><div class="who"><div class="who-in">I am MediPass, connected to the personal data of <b id="who">Max Mustermann</b>.</div></div></header>
+<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app">Check</a><a href="/agent" aria-current="page">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav></div><div class="who"><div class="who-in"><span class="who-main">MediPass <span class="who-note">(connected to your electronic health record)</span></span><span class="who-name" id="who">Max Mustermann</span></div></div></header>
 <main>
   <h1 class="sr">MediPass</h1>
   <p class="sub">Tell the agent what is wrong. It checks your record and your ring, then orders safely.</p>

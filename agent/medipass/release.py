@@ -57,6 +57,29 @@ def read(code: str, now: float | None = None) -> dict[str, Any] | None:
         body = json.loads(_unb64(payload))
     except ValueError:
         return None
-    if not isinstance(body, dict) or body.get("e", 0) < (now if now is not None else time.time()):
+    if not isinstance(body, dict) or body.get("t") == "offer" or body.get("e", 0) < (now if now is not None else time.time()):
         return None
     return {"medicine": body.get("m"), "verdict": body.get("v"), "warnings": [{"light": w.get("l"), "title": w.get("t")} for w in body.get("w", [])], "expiresAt": body["e"]}
+
+
+OFFER_TTL_SECONDS = 30 * 60
+
+
+def sign_offer(ingredient: str, otc: bool, record_hash: str, now: float | None = None) -> str:
+    """A signed, expiring offer for one medicine and one record. The buy call accepts nothing else for medicines outside the fixed catalog."""
+    body = {"t": "offer", "i": ingredient, "o": otc, "h": record_hash, "e": int((now if now is not None else time.time()) + OFFER_TTL_SECONDS)}
+    payload = _b64(json.dumps(body, separators=(",", ":")).encode())
+    return f"{payload}.{_sign(payload)}"
+
+
+def read_offer(token: str, now: float | None = None) -> dict[str, Any] | None:
+    payload, _, signature = token.partition(".")
+    if not payload or not hmac.compare_digest(signature, _sign(payload)):
+        return None
+    try:
+        body = json.loads(_unb64(payload))
+    except ValueError:
+        return None
+    if not isinstance(body, dict) or body.get("t") != "offer" or body.get("e", 0) < (now if now is not None else time.time()):
+        return None
+    return {"ingredient": body.get("i"), "otc": body.get("o") is True, "recordHash": body.get("h")}

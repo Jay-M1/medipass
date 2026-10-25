@@ -31,7 +31,7 @@ def _prompt(text: str) -> str:
         '"red_flags": [<short English phrases>]}.\n'
         "intent is the main complaint, or null if none of those fits. medicine is only a medicine the person explicitly names. Do not suggest one.\n"
         "red_flags lists every possible emergency sign the message mentions or hints at, for example a sudden or worst ever pain, chest pain, trouble breathing, "
-        "confusion, trouble speaking, weakness or numbness, vision loss, fainting or seizure, a head injury, stiff neck, pregnancy. If unsure, include it. Never diagnose.\n\n"
+        "confusion, trouble speaking, weakness or numbness, vision loss, fainting or seizure, a head injury, stiff neck, pregnancy. List a flag only when the message says it or clearly implies it. A pain that is strong, severe or started today or this morning is not a red flag by itself. A sudden onset means it came on within seconds or minutes, like a thunderclap. Never diagnose.\n\n"
         f"Message\n{text}"
     )
 
