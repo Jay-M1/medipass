@@ -203,6 +203,38 @@ class LifeSavingExampleTest(unittest.TestCase):
         self.assertNotIn("Do not stop a medicine", out["reply"])  # not something they take
 
 
+class DescribedMedicineTest(unittest.TestCase):
+    """"Please order my blood thinner" without a name."""
+
+    def test_my_blood_thinner_is_the_one_on_my_list_and_gets_the_pitch_answer(self) -> None:
+        for text in ("Please order my blood thinner", "please order my blood thinner.", "Bitte bestell meinen Blutverdünner", "Can you reorder my anticoagulant"):
+            out = run(text, ANNA_FULL_PROFILE)
+            self.assertEqual((out["decision"], out.get("order")), ("advise", None), text)
+            self.assertIn("I will not order clopidogrel", out["reply"], text)
+            self.assertIn("prasugrel or ticagrelor", out["reply"], text)
+
+    def test_the_model_reading_the_description_as_a_medicine_name_changes_nothing(self) -> None:
+        out = asyncio.run(care.run("Please order my blood thinner", ANNA_FULL_PROFILE, None, reading(medicine="blood thinner")))
+        self.assertIn("I will not order clopidogrel", out["reply"])
+
+    def test_it_follows_the_person_not_a_fixed_drug(self) -> None:
+        warfarin = parse_profile({"medications": ["Warfarin"]})
+        self.assertEqual(care.class_medicine("my blood thinner", warfarin), "warfarin")
+        self.assertIsNone(care.class_medicine("my blood thinner", Profile(medications=("Paracetamol",))))
+        self.assertEqual(care.class_medicine("my cholesterol tablet", ANNA_FULL_PROFILE), "simvastatin")
+        self.assertEqual(care.class_medicine("meine Blutdrucktabletten", ANNA_FULL_PROFILE), "ramipril")  # also inside a German compound word
+        self.assertEqual(care.class_medicine("my blood pressure pills", ANNA_FULL_PROFILE), "ramipril")
+
+    def test_a_person_without_a_blood_thinner_is_not_given_one(self) -> None:
+        out = run("Please order my blood thinner", Profile(medications=("Paracetamol",)))
+        self.assertNotIn("I will not order clopidogrel", out["reply"])
+        self.assertIsNone(out.get("order"))
+
+    def test_my_blood_pressure_pills_go_to_a_doctor_for_a_refill(self) -> None:
+        out = run("Please order my blood pressure pills", ANNA_FULL_PROFILE)
+        self.assertEqual(out["decision"], "doctor_review")
+
+
 class HayFeverTest(unittest.TestCase):
     def test_hay_fever_is_not_a_fever(self) -> None:
         self.assertIsNone(care.detect_intent("it is hay fever"))

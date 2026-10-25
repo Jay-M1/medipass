@@ -69,7 +69,7 @@
     <div class="card" id="askCard">
       <label class="card-title" for="ask">Tell MediPass what you need</label>
       <p class="small card-intro">For example pain, an infection or heartburn. Type it or say it. The agent checks your record, and can buy for you.</p>
-      <textarea id="ask" class="big" rows="2" placeholder="For example, I have a bad headache, get me something."></textarea>
+      <textarea id="ask" class="big" rows="2" placeholder="For example, please order my blood thinner."></textarea>
       <div class="row askrow">
         <button class="primary" id="askBtn">Ask</button>
         <button class="ghost mic" id="micBtn" aria-pressed="false" hidden>Speak</button>
@@ -308,7 +308,7 @@ $("name").addEventListener("input", () => { const n = $("name").value.trim() || 
 
 // Ask the agent. It checks the record, may propose or buy, and sends prescription medicines to a doctor.
 const askLabels = { order: "Ordered", proposal: "Suggestion, waiting for you", doctor_review: "Waiting for a doctor", urgent: "Please get medical help now", advise: "Not ordered, advice only", unknown: "I need more information" };
-const askExamples = ["I have a headache since this morning, get me something.", "My eyes itch and my nose runs every spring.", "I have a bladder infection, I need an antibiotic.", "I have pain in my liver."];
+const askExamples = ["Please order my blood thinner.", "I have a headache since this morning, get me something.", "My eyes itch and my nose runs every spring.", "I have a bladder infection, I need an antibiotic.", "I have pain in my liver."];
 for (const t of askExamples) { const b = document.createElement("button"); b.className = "chip"; b.textContent = t.length > 38 ? t.slice(0, 36) + "..." : t; b.onclick = () => { $("ask").value = t; }; $("askChips").append(b); }
 let askTimer = null;
 const mk = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };

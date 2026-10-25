@@ -42,6 +42,31 @@ def detect_intent(prompt: str) -> str | None:
     return next((name for name, pattern in INTENTS if re.search(pattern, text)), None)
 
 
+# People describe a medicine by what it is for. These words are resolved against the medicines the person already takes.
+CLASS_WORDS: dict[str, tuple[str, ...]] = {
+    "blood thinner": ("blood thinner", "blood-thinner", "blutverdünner", "blutverduenner", "gerinnungshemmer", "anticoagulant", "antiplatelet", "thrombozytenaggregationshemmer"),
+    "cholesterol": ("cholesterol", "cholesterin", "statin"),
+    "blood pressure": ("blood pressure", "blutdruck", "hypertension", "bluthochdruck"),
+}
+CLASS_MEMBERS: dict[str, frozenset[str]] = {
+    "blood thinner": frozenset({"clopidogrel", "warfarin", "ticagrelor", "prasugrel", "apixaban", "rivaroxaban", "phenprocoumon", "acetylsalicylic acid"}),
+    "cholesterol": frozenset({"simvastatin", "atorvastatin", "rosuvastatin", "pravastatin"}),
+    "blood pressure": frozenset({"ramipril", "lisinopril", "amlodipine", "bisoprolol", "metoprolol", "candesartan", "losartan", "valsartan"}),
+}
+
+
+def class_medicine(text: str, profile: Profile) -> str | None:
+    """"My blood thinner" becomes the blood thinner on this person's own list, or None if they take none."""
+    lowered = text.lower()
+    for kind, words in CLASS_WORDS.items():
+        if any(w in lowered for w in words):
+            for taken in profile.medications:
+                name = ALIASES.get(taken.strip().lower(), taken.strip().lower())
+                if name in CLASS_MEMBERS[kind]:
+                    return name
+    return None
+
+
 def named_medicine(prompt: str) -> str | None:
     """An ingredient the person asked for by name, taking the longest matching name."""
     text = prompt.lower()
@@ -233,6 +258,9 @@ async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understan
             by_model = named is not None
         if intent is None and not named and reading["intent"]:
             intent, by_model = reading["intent"], True
+    if named is None:
+        # "my blood thinner" means the one this person already takes
+        named = class_medicine(prompt, profile) or (class_medicine(reading["medicine"], profile) if reading and reading.get("medicine") else None)
     via = " (understood with the AI model)" if by_model else ""
     notes = _context_notes(wearable) if intent in ("headache", "fever", "pain") else []
     if reading and reading.get("medicine") and named is None:
