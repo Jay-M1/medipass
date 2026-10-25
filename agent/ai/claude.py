@@ -10,7 +10,7 @@ import httpx
 API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-sonnet-5-5"
-MAX_TOKENS = 1024
+MAX_TOKENS = 3000
 TIMEOUT_SECONDS = 30
 
 

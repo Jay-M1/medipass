@@ -35,7 +35,7 @@
     <div class="card">
       <label class="ask" for="medicine">Or type the name of a medicine</label>
       <div class="row">
-        <input id="medicine" class="big" placeholder="Name or brand, for example Ibuprofen" autocomplete="off">
+        <input id="medicine" class="big" placeholder="Any medicine, for example Ibuprofen or Amiodarone" autocomplete="off">
         <button class="primary" id="go">Check</button>
       </div>
       <div class="row" style="margin-top:12px"><span class="try">Try</span><span class="row" id="quick" style="gap:8px"></span></div>
@@ -45,7 +45,7 @@
     <div class="card" id="result" hidden aria-live="polite">
       <div class="light">
         <div class="dot" id="dot" aria-hidden="true"><i></i><i></i><i></i></div>
-        <div class="light-text"><div id="medname"></div><div class="verdict" id="verdict"></div><div class="meaning" id="meaning"></div></div>
+        <div class="light-text"><div class="aibadge" id="aiBadge" hidden>AI assessment, not our rule set</div><div id="medname"></div><div class="verdict" id="verdict"></div><div class="meaning" id="meaning"></div></div>
       </div>
       <p id="explanation" hidden></p>
       <div class="lists">
@@ -113,7 +113,7 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let lang = "en", last = null;
-const quick = ["Ibuprofen", "Omeprazole", "Pantoprazole", "Amoxicillin", "Paracetamol"];
+const quick = ["Ibuprofen", "Omeprazole", "Pantoprazole", "Amoxicillin", "Paracetamol", "Amiodarone"];
 for (const q of quick) { const b = document.createElement("button"); b.className = "chip"; b.textContent = q; b.onclick = () => { $("medicine").value = q; run(); }; $("quick").append(b); }
 
 for (const t of ["check", "profile", "emergency"]) {
@@ -128,18 +128,19 @@ function profile() {
   const egfr = parseFloat($("egfr").value);
   return { medications: list("meds"), allergies: list("allergies"), conditions: list("conditions"), genotype, labs: Number.isFinite(egfr) ? { egfr } : {}, symptoms: list("symptoms") };
 }
+const aiMeanings = { green: "The AI found no concern. This medicine is not in our rule set, so double check with a pharmacist.", yellow: "The AI sees points to check. Read them below and ask a pharmacist.", red: "The AI advises against it for you. Talk to a doctor or pharmacist first.", unknown: "The AI could not assess this one." };
 const meanings = { green: "No concerns found in the data checked.", yellow: "Take care. Read the points below before you use it.", red: "Not advised for you. Talk to a doctor or pharmacist first.", unknown: "This medicine is not in the demo rule set, so it was not checked." };
 const body = () => ({ medicine: $("medicine").value.trim(), profile: profile(), explain: true, lang });
 
 async function run() {
   if (!$("medicine").value.trim()) return;
-  $("go").disabled = true;
+  $("go").disabled = true; $("go").textContent = "Checking...";
   try {
     const res = await fetch("/api/medipass/check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body()) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Request failed");
     last = data; show(data);
-  } catch (e) { alert(e.message); } finally { $("go").disabled = false; }
+  } catch (e) { alert(e.message); } finally { $("go").disabled = false; $("go").textContent = "Check"; }
 }
 
 function goodLines(d, p) {
@@ -153,12 +154,13 @@ function goodLines(d, p) {
 }
 function show(d) {
   $("result").hidden = false; $("released").hidden = true;
-  const lines = goodLines(d, profile());
+  const lines = d.aiAssessed ? (d.good || []) : goodLines(d, profile());
   $("goodList").replaceChildren(...(lines.length ? lines : ["Nothing in the data checked speaks for or against it."]).map((t) => { const li = document.createElement("li"); li.textContent = t; if (!lines.length) li.style.paddingLeft = "0"; return li; }));
   $("result").scrollIntoView({ behavior: "smooth", block: "start" });
   $("dot").className = "dot " + (d.verdict === "unknown" ? "" : d.verdict);
   $("verdict").textContent = d.verdict === "unknown" ? "No verdict" : d.verdict;
-  $("meaning").textContent = meanings[d.verdict] || meanings.unknown;
+  $("aiBadge").hidden = !d.aiAssessed;
+  $("meaning").textContent = (d.aiAssessed ? aiMeanings : meanings)[d.verdict] || meanings.unknown;
   $("medname").textContent = d.medicine || "";
   $("explanation").hidden = !d.explanation; $("explanation").textContent = d.explanation || "";
   $("findings").replaceChildren(...d.findings.map((f) => {
@@ -172,7 +174,7 @@ function show(d) {
   }));
   if (d.verdict === "green") { const el = document.createElement("div"); el.className = "finding green"; el.textContent = "Nothing was found in the data checked. This is not a guarantee."; $("findings").append(el); }
   $("notes").textContent = d.notes.join(" ");
-  $("release").hidden = d.verdict === "unknown";
+  $("release").hidden = d.verdict === "unknown" || !!d.aiAssessed;
 }
 
 $("reviewBtn").onclick = async () => {
@@ -245,7 +247,8 @@ $("photoInput").onchange = async (event) => {
     const name = [data.brand, data.strength].filter(Boolean).join(" ") || data.ingredient || "a medicine";
     const unsure = data.confidence === "high" ? "" : " I am not fully sure, please check the name on your box.";
     if (data.known) scanSay(confirmBox("I read " + name, "Active ingredient " + data.known + "." + unsure + (code ? " Barcode " + code + " will be remembered." : ""), data.known, dataUrl));
-    else scanSay(confirmBox("I read " + name, "That medicine is not in our demo rule set, so no traffic light can be shown." + unsure, null, dataUrl));
+    else if (data.ingredient || data.brand) scanSay(confirmBox("I read " + name, "This medicine is not in our rule set. The AI can assess it against your record, and it will be marked as an AI assessment." + unsure, data.ingredient || data.brand, dataUrl));
+    else scanSay(confirmBox("I could not read a medicine name", "Try another photo, or type the name." + unsure, null, dataUrl));
   } catch (err) {
     scanSay(err.message || "The photo could not be read. Type the name instead.");
   } finally { event.target.value = ""; }

@@ -1,7 +1,8 @@
 """POST /api/medipass/check is free (the app demo). POST /v1/interaction-check is the same check, paid per call.
 
 Body for both  { "medicine": "Nurofen", "profile": { "medications": ["Clopidogrel"], "allergies": [],
-"conditions": [], "genotype": { "CYP2C19": "poor" } }, "explain": true, "lang": "en" }
+"conditions": [], "genotype": { "CYP2C19": "poor" } }, "explain": true, "lang": "en", "ai": true }
+A medicine the fixed rules do not know gets an assessment from the model, marked "aiAssessed". Send "ai": false to switch that off.
 
 POST /api/medipass/review checks every medicine in the profile (the medication review).
 POST /api/medipass/release takes the same body and returns a signed pharmacy code (warnings only, 15 minutes).
@@ -19,7 +20,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from agent.ai.llm import MissingLlmKeyError, ask_llm_image
-from agent.medipass import release
+from agent.medipass import ai_check, release
 from agent.medipass.engine import check, known_medicines, parse_profile, review
 from agent.medipass.explain import explain
 from agent.medipass.scan import MAX_IMAGE_BYTES, ScanError, identify
@@ -60,6 +61,12 @@ async def _run_check(request: Request) -> JSONResponse:
     body, medicine, profile = parsed
     result = check(medicine, profile)
     payload = result.to_dict()
+    if result.verdict == "unknown" and body.get("ai") is not False:
+        # The rules do not know this medicine, so the model gives an assessment that is clearly marked as AI.
+        assessed = await ai_check.assess(medicine, profile)
+        if assessed:
+            return JSONResponse(assessed)
+        payload["notes"] = [*payload["notes"], "The AI assessment is not available right now. Try again, or ask a pharmacist."]
     if body.get("explain") is True:
         payload["explanation"] = await explain(result, str(body.get("lang") or "en"))
     return JSONResponse(payload)

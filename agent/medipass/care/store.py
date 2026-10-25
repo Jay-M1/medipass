@@ -42,6 +42,17 @@ class Store:
         raw = await self._redis(["GET", f"medipass:req:{request_id}"])
         return json.loads(raw) if raw else None
 
+    async def recall(self, key: str) -> Any:
+        """A saved answer, or None. Only kept in Redis, so every server gives the same answer. Without Redis the caller keeps its own copy."""
+        if not self.persistent:
+            return None
+        raw = await self._redis(["GET", f"medipass:kv:{key}"])
+        return json.loads(raw) if raw else None
+
+    async def remember(self, key: str, value: Any, ttl: int = 7 * 24 * 3600) -> None:
+        if self.persistent:
+            await self._redis(["SET", f"medipass:kv:{key}", json.dumps(value), "EX", ttl])
+
     async def all(self) -> list[dict[str, Any]]:
         if not self.persistent:
             records = list(self._local.values())
