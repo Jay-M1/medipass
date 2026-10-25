@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediPass Vision</title>
+<link rel="stylesheet" href="/assets/medipass.css">
+</head>
+<body>
+<main>
+  <h1>MediPass</h1>
+  <p class="sub">From a safe check today to medicine made for one person tomorrow.</p>
+  <nav class="top"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision" aria-current="page">Vision</a></nav>
+
+  <div class="card">
+    <span class="tag">The idea</span>
+    <p style="margin:6px 0 0">One personal health record, kept by the patient, that an AI agent can use to pick and buy the right medicine at the right moment. It reads your medicines, allergies, conditions, gene results and live data from a ring or band. A doctor stays in the loop for prescriptions. Payments between agent, doctor and pharmacy happen automatically on Solana.</p>
+  </div>
+
+  <h2>Why it is different</h2>
+  <div class="card">
+    <p style="margin:0 0 8px"><b>Other apps tell you what a medicine does. MediPass tells you what it does in you.</b></p>
+    <div class="step"><div><b>Personal, not general</b><div class="small">A usual interaction checker compares one medicine with another. MediPass also uses gene results, so it can tell whether your body clears a drug fast, slowly or not at all. To our knowledge few consumer apps do this today.</div></div></div>
+    <div class="step"><div><b>At the moment of the decision</b><div class="small">The warning appears when you buy or order, including over-the-counter medicines such as ibuprofen, which a prescription record does not contain.</div></div></div>
+    <div class="step"><div><b>One place, not four</b><div class="small">Medicines, allergies, kidney values, gene results and your own notes sit together instead of in a doctor's system, a lab report, a drawer and your memory.</div></div></div>
+    <div class="step"><div><b>Only what is needed is shared</b><div class="small">A pharmacist gets a short lived code with the warnings only, never the whole record.</div></div></div>
+  </div>
+
+  <h2>One example, Anna, 58</h2>
+  <div class="card">
+    <p class="small" style="margin:0 0 8px">All values are invented. The links between gene and medicine follow public guidelines such as CPIC.</p>
+    <table>
+      <tr><th>Light</th><th>What MediPass finds</th><th>What it suggests</th></tr>
+      <tr><td><span class="pill red">red</span></td><td>Clopidogrel after a stent probably works poorly for her, because she clears it slowly (CYP2C19).</td><td>Ask the cardiologist whether prasugrel or ticagrelor would suit her better.</td></tr>
+      <tr><td><span class="pill yellow">yellow</span></td><td>Her muscle pain fits simvastatin together with her SLCO1B1 result.</td><td>Ask about a lower dose or another statin.</td></tr>
+      <tr><td><span class="pill yellow">yellow</span></td><td>Ibuprofen adds bleeding risk with clopidogrel, can weaken ramipril and strains kidneys that already work less well.</td><td>Paracetamol is usually the better choice. Ask a pharmacist.</td></tr>
+      <tr><td><span class="pill red">red</span></td><td>Amoxicillin, because of her penicillin allergy.</td><td>Do not take it. Ask for an alternative.</td></tr>
+    </table>
+    <p class="small" style="margin:8px 0 0">No single source shows this. The doctor does not see the gene, the pharmacy does not see the ibuprofen, and Anna thinks the muscle pain comes with age. Joining the sources reveals two possible treatment problems and an explanation for her complaint.</p>
+  </div>
+
+  <h2>Where the data comes from, and its limits</h2>
+  <div class="card">
+    <div class="step"><div><b>Sources</b><div class="small">The patient record (medicines from e-prescriptions, letters, diagnoses, lab values such as kidney function), a one off gene test that covers around ten to fifteen genes, and the person's own notes on over-the-counter medicines, effects and side effects.</div></div></div>
+    <div class="step"><div><b>Limits we respect, to our current understanding</b><div class="small">Health and gene data have special protection under the GDPR and need explicit consent, so the data should stay on the person's own device. In Germany, genetic tests may only be ordered by doctors, so MediPass takes in the result and never orders a test. Third party apps cannot simply read the national patient record, as access runs through the insurer's app. For the start, people enter their medicines by hand or scan their medication plan. These legal points were not freshly verified, so check them before relying on them.</div></div></div>
+  </div>
+
+  <h2>Where we are today</h2>
+  <div class="card">
+    <table>
+      <tr><th>Built in this hackathon</th><th>How it works</th></tr>
+      <tr><td>Traffic light check</td><td>Rules for interactions, gene results (CYP2C19, CYP2D6, DPYD, SLCO1B1, CYP2C9), allergies and conditions. The verdict is never decided by an AI model.</td></tr>
+      <tr><td>Care agent</td><td>Understands a free sentence in any language, such as "I have a very strong headache, get me tablets". It checks red flags first, ranks the options against your record and your ring, and orders the safest one. The AI model reads the sentence and may only add caution. The rules decide.</td></tr>
+      <tr><td>Medication review</td><td>Checks everything you already take against your genes, allergies and kidney values, worst first, with a concrete next step and a hint when a complaint may be explained by a medicine.</td></tr>
+      <tr><td>Doctor in the loop</td><td>Prescription medicines wait for a quick yes or no from a doctor who sees the record and the check. No appointment.</td></tr>
+      <tr><td>Agent payments</td><td>The agent pays the pharmacy and the doctor on Solana devnet with test USDC. Where no receiving address is set, the payment is clearly labelled as simulated.</td></tr>
+      <tr><td>Pharmacy code</td><td>A signed 15 minute code that shows warnings only, never the profile.</td></tr>
+    </table>
+    <p class="small">Honest limits. The rule set is a demo and not a validated database. Ring readings are simulated. Orders and payments use test money. No real prescriptions are issued.</p>
+  </div>
+
+  <h2>Two kinds of medicine, two kinds of personal</h2>
+  <div class="grid2">
+    <div class="card">
+      <span class="tag">Small molecules</span>
+      <h3>Aspirin, ibuprofen, clopidogrel</h3>
+      <p style="margin:0">You cannot redesign a small molecule for one person, because a changed molecule no longer fits the enzyme and stops working. What you can personalise is the choice and the dose. Gene results such as CYP2C19 or DPYD predict who clears a drug fast or slowly. <b>This is where MediPass works today.</b></p>
+    </div>
+    <div class="card">
+      <span class="tag">Antibodies and mRNA therapies</span>
+      <h3>Made for one patient</h3>
+      <p style="margin:0">A tumour is different in every person. Its mutations can be read, and a therapy can be built against them. Moderna and Merck report that their individualised neoantigen therapy intismeran autogene met its main goal in a Phase 3 melanoma trial in August 2026. <b>This is the long term bridge, and it is not cheap or fast yet.</b></p>
+    </div>
+  </div>
+  <p class="small">"Personalised medicine" means different things here. The method depends on the drug type, so we keep the two paths apart.</p>
+
+  <h2>Four year plan</h2>
+  <div class="tl">
+    <div class="card"><span class="tag">2026 to 2027</span><h3>Check and order</h3><p class="small" style="margin:0">Pilot with a few pharmacies and doctors. Over-the-counter orders and doctor approved prescriptions. Rules reviewed by pharmacists. Regulatory path clarified for medical software.</p></div>
+    <div class="card"><span class="tag">2027 to 2028</span><h3>Patient owned data</h3><p class="small" style="margin:0">Connect rings and bands, labs and gene reports with consent. Pay per use between agents and services instead of selling the data.</p></div>
+    <div class="card"><span class="tag">2028 to 2029</span><h3>Closed loop</h3><p class="small" style="margin:0">Track whether a medicine worked and whether side effects appeared. Use it to improve advice and doses for the person.</p></div>
+    <div class="card"><span class="tag">2029 to 2030</span><h3>Bridge to made to order</h3><p class="small" style="margin:0">Partner with makers of personalised therapies. MediPass becomes the consented data and ordering layer between patient, doctor and manufacturer.</p></div>
+  </div>
+  <p class="small">This is a plan, not a forecast. It depends on regulation, partners and funding.</p>
+
+  <h2>Market, with honest ranges</h2>
+  <div class="card">
+    <table>
+      <tr><th>Segment</th><th>What the sources say</th></tr>
+      <tr><td>Pharmacogenomics</td><td>About 5.7 billion USD (2025) by one publisher up to about 19.6 billion USD by another, with growth of roughly 7.5 to 10.6 percent a year. Ranges differ because publishers count different things. <a href="https://www.gminsights.com/industry-analysis/pharmacogenomics-market" target="_blank" rel="noopener">Global Market Insights</a>, <a href="https://www.biospace.com/press-releases/pharmacogenomics-market-size-to-reach-usd-43-09-bn-by-2034-says-precedence-research" target="_blank" rel="noopener">Precedence Research</a></td></tr>
+      <tr><td>Smart rings</td><td>Medical rings alone are small, about 340 million USD in 2025 growing to about 461 million USD by 2030 in one estimate. Consumer ring forecasts grow much faster. <a href="https://giikorea.co.kr/report/ires1677192-medical-smart-rings-market-by-product-type.html" target="_blank" rel="noopener">360iResearch</a>, <a href="https://abiresearch.com/press/smartwatches-and-smart-rings-set-to-lead-another-growth-surge-for-wearables-market" target="_blank" rel="noopener">ABI Research</a></td></tr>
+      <tr><td>Individualised cancer therapy</td><td>First positive Phase 3 result for an individualised neoantigen therapy, reported on 19 August 2026. Nine more Phase 2 and 3 trials are running. <a href="https://www.ajmc.com/view/moderna-merck-mrna-cancer-vaccine-succeeds-in-late-stage-trial" target="_blank" rel="noopener">AJMC</a></td></tr>
+    </table>
+    <p class="small">We did not build a bottom up revenue model today, so we show no single market number. Market reports are forecasts by publishers, and their definitions differ.</p>
+  </div>
+
+  <h2>Who else is in this space</h2>
+  <div class="card">
+    <table>
+      <tr><th>Company</th><th>What they do</th><th>What is different about MediPass</th></tr>
+      <tr><td>CUDIS</td><td>Smart ring with an AI coach, health data linked to Solana. Raised a 5 million USD seed round led by Draper Associates and says it sold over 20,000 rings (company claim). <a href="https://www.theblock.co/post/316861/draper-associates-leads-5-million-seed-round-for-web3-ai-wellness-firm-cudis" target="_blank" rel="noopener">The Block</a></td><td>Collects wellness data and rewards wearing the ring. MediPass uses such data for the patient's own medicine decisions. A ring maker could be a partner.</td></tr>
+      <tr><td>Nebula Genomics</td><td>Offered genome sequencing where data could be shared with pharma, in launch era reports. Signed a first pharma sponsor in 2019. <a href="https://www.statnews.com/2019/06/11/nebula-genomics-dna-sequencing-startup-signs-first-pharma-sponsor/" target="_blank" rel="noopener">STAT</a></td><td>Data is the product. For MediPass the data stays with the patient and is used to keep them safe. We found no current information on how Nebula operates today.</td></tr>
+      <tr><td>Genomes.io</td><td>We could not verify this company in our research.</td><td>Not assessed.</td></tr>
+      <tr><td>Moderna and Merck</td><td>Build individualised cancer therapies from a patient's tumour.</td><td>They make the medicine. MediPass would be the consented data and ordering layer in front of such makers.</td></tr>
+    </table>
+  </div>
+
+  <h2>Policy proposal, a consented health data pass</h2>
+  <div class="card">
+    <div class="step"><div><b>The problem</b><div class="small">Health data is scattered and incomplete. Companies that collect it often sell it on. At the same time people take medicines that interact with their own genes and other drugs, and AI agents are starting to buy things for us.</div></div></div>
+    <div class="step"><div><b>The proposal</b><div class="small">A patient owned health record with a duty on every AI agent to check it before buying a medicine. Prescriptions need a human clinician in the loop. Every use leaves an audit trail, and the data is shared only for a stated purpose and for a limited time, as the pharmacy code already does.</div></div></div>
+    <div class="step"><div><b>Who is responsible</b><div class="small">The clinician who approves a prescription. The operator of the agent for its safety checks and its logs. The pharmacy for dispensing. The patient for the accuracy of what they enter. Regulators certify the rules, as for any medical software.</div></div></div>
+    <div class="step"><div><b>Trade offs</b><div class="small">Faster ordering must not mean lower quality of care, so red flags stop the order. Rules can be wrong or out of date, so every verdict names its source and says it does not replace a pharmacist. Rich health data can be misused, so we minimise what is shared. Cheap and fast access can push people to skip a conversation with a professional. Gene data can reveal family members, and access can be unequal.</div></div></div>
+  </div>
+
+  <p class="small">MediPass does not replace advice from a doctor or pharmacist.</p>
+</main>
+</body>
+</html>

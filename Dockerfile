@@ -1,0 +1,8 @@
+# Fallback for hosts that run a container (Railway, Render, Fly). Vercel does not need it.
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+ENV HOST=0.0.0.0
+CMD ["python", "-m", "agent", "serve"]

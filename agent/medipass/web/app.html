@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediPass</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#14181f; --muted:#5b6472; --line:#e3e6ea; --green:#1f9d55; --yellow:#e0a100; --red:#d6382f; --accent:#2457d6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0e1116; --card:#171b22; --ink:#eef1f5; --muted:#9aa3b2; --line:#272d37; --accent:#6f95ff; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 56px; }
+  h1 { margin:0; font-size:28px; letter-spacing:-.02em; }
+  .sub { color:var(--muted); margin:2px 0 18px; }
+  nav { display:flex; gap:8px; margin-bottom:16px; }
+  nav button { flex:1; padding:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:10px; font:inherit; cursor:pointer; }
+  nav button[aria-selected="true"] { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input, textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .row > input { flex:1; min-width:180px; }
+  button.primary { padding:10px 16px; border:0; border-radius:10px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button.chip { padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--ink); font:inherit; font-size:14px; cursor:pointer; }
+  .light { display:flex; align-items:center; gap:14px; }
+  .dot { width:56px; height:56px; border-radius:50%; flex:none; background:var(--muted); }
+  .dot.green { background:var(--green); } .dot.yellow { background:var(--yellow); } .dot.red { background:var(--red); }
+  .verdict { font-size:22px; font-weight:700; text-transform:capitalize; }
+  .finding { border-left:4px solid var(--line); padding:6px 0 6px 12px; margin:10px 0; }
+  .finding.green { border-color:var(--green); } .finding.yellow { border-color:var(--yellow); } .finding.red { border-color:var(--red); }
+  .finding b { display:block; }
+  .small { font-size:13px; color:var(--muted); }
+  .code { font:14px ui-monospace,Menlo,monospace; word-break:break-all; background:var(--bg); padding:8px; border-radius:8px; border:1px solid var(--line); }
+  .lock { background:linear-gradient(160deg,#111827,#1f2a44); color:#fff; border-radius:24px; padding:28px 20px; text-align:center; }
+  .lock .time { font-size:56px; font-weight:300; }
+  .lock .sos { background:rgba(255,255,255,.12); border-radius:14px; padding:12px; margin-top:16px; text-align:left; font-size:14px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>MediPass</h1>
+  <p class="sub">Does this medicine work for me, and is it safe? A traffic light in seconds.</p>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"><a href="/app" style="padding:7px 14px;border:1px solid var(--accent);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px;font-weight:600">Check</a><a href="/agent" style="padding:7px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px">Agent</a><a href="/doctor" style="padding:7px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px">Doctor</a><a href="/vision" style="padding:7px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px">Vision</a></div>
+  <nav role="tablist">
+    <button role="tab" id="t-check" aria-selected="true">Check</button>
+    <button role="tab" id="t-profile" aria-selected="false">My profile</button>
+    <button role="tab" id="t-emergency" aria-selected="false">Emergency</button>
+  </nav>
+
+  <section id="p-check">
+    <div class="card">
+      <label for="medicine">Medicine (name or brand)</label>
+      <div class="row">
+        <input id="medicine" placeholder="e.g. Ibuprofen" autocomplete="off">
+        <button class="primary" id="go">Check</button>
+      </div>
+      <div class="row" style="margin-top:10px" id="quick"></div>
+      <label for="lang">Explanation language</label>
+      <div class="row"><button class="chip" id="lang-en" aria-pressed="true">English</button><button class="chip" id="lang-de" aria-pressed="false">Deutsch</button></div>
+    </div>
+    <div class="card">
+      <div class="row"><button class="primary" id="reviewBtn">Review my medicines</button><span class="small">Checks everything you already take against your genes, allergies and kidney values.</span></div>
+      <div id="review" style="margin-top:10px"></div>
+    </div>
+    <div class="card" id="result" hidden>
+      <div class="light"><div class="dot" id="dot"></div><div><div class="verdict" id="verdict"></div><div class="small" id="medname"></div></div></div>
+      <p id="explanation" hidden></p>
+      <div id="findings"></div>
+      <div id="notes" class="small"></div>
+      <div class="row" style="margin-top:12px"><button class="primary" id="release">Release for pharmacy</button></div>
+      <div id="released" hidden style="margin-top:12px">
+        <div class="small">Shows only the warnings, never your profile. Valid for 15 minutes.</div>
+        <div class="code" id="code"></div>
+        <p class="small"><a id="plink" target="_blank" rel="noopener">Open the pharmacy view</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="p-profile" hidden>
+    <div class="card">
+      <p class="small">Demo profile of Anna, 58 (all values invented, the gene and drug links follow public guidelines). Medication list, allergies and gene results would come from the patient record and a genetic report. Everything stays in your browser until you press Check.</p>
+      <label for="meds">Current medicines (comma separated)</label><input id="meds" value="Clopidogrel, Simvastatin, Ramipril">
+      <label for="allergies">Allergies (e.g. penicillin, NSAID)</label><input id="allergies" value="Penicillin">
+      <label for="conditions">Conditions (e.g. stomach ulcer, chronic kidney disease)</label><input id="conditions" value="">
+      <label for="genes">Gene results (GENE: phenotype, comma separated)</label><input id="genes" value="CYP2C19: poor, SLCO1B1: decreased, CYP2D6: normal">
+      <label for="egfr">Kidney function from the lab (eGFR, below 60 is reduced)</label><input id="egfr" type="number" value="52">
+      <label for="symptoms">Your own notes on complaints</label><input id="symptoms" value="muscle pain in the legs since the statin">
+    </div>
+  </section>
+
+  <section id="p-emergency" hidden>
+    <div class="lock">
+      <div class="time">9:41</div>
+      <div>Emergency information</div>
+      <div class="sos">
+        <b>Anna Example, 58</b> (demo data)<br>
+        Takes clopidogrel after a stent. Allergic to penicillin.<br>
+        Advance directive on file. No resuscitation if there is no realistic chance of recovery.<br>
+        Contact in an emergency, her daughter (demo number).
+      </div>
+    </div>
+    <p class="small">Concept screen. In the app this card is readable from the lock screen without unlocking.</p>
+  </section>
+
+  <p class="small">MediPass does not replace advice from a doctor or pharmacist. Demo rule set, not a validated database.</p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let lang = "en", last = null;
+const quick = ["Ibuprofen", "Omeprazole", "Pantoprazole", "Amoxicillin", "Paracetamol"];
+for (const q of quick) { const b = document.createElement("button"); b.className = "chip"; b.textContent = q; b.onclick = () => { $("medicine").value = q; run(); }; $("quick").append(b); }
+
+for (const t of ["check", "profile", "emergency"]) {
+  $("t-" + t).onclick = () => { for (const o of ["check", "profile", "emergency"]) { $("p-" + o).hidden = o !== t; $("t-" + o).setAttribute("aria-selected", String(o === t)); } };
+}
+for (const l of ["en", "de"]) $("lang-" + l).onclick = () => { lang = l; for (const o of ["en", "de"]) $("lang-" + o).setAttribute("aria-pressed", String(o === l)); if (last) run(); };
+
+const list = (id) => $(id).value.split(",").map((s) => s.trim()).filter(Boolean);
+function profile() {
+  const genotype = {};
+  for (const part of list("genes")) { const [g, p] = part.split(":").map((s) => s.trim()); if (g && p) genotype[g.toUpperCase()] = p; }
+  const egfr = parseFloat($("egfr").value);
+  return { medications: list("meds"), allergies: list("allergies"), conditions: list("conditions"), genotype, labs: Number.isFinite(egfr) ? { egfr } : {}, symptoms: list("symptoms") };
+}
+const body = () => ({ medicine: $("medicine").value.trim(), profile: profile(), explain: true, lang });
+
+async function run() {
+  if (!$("medicine").value.trim()) return;
+  $("go").disabled = true;
+  try {
+    const res = await fetch("/api/medipass/check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body()) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    last = data; show(data);
+  } catch (e) { alert(e.message); } finally { $("go").disabled = false; }
+}
+
+function show(d) {
+  $("result").hidden = false; $("released").hidden = true;
+  $("dot").className = "dot " + (d.verdict === "unknown" ? "" : d.verdict);
+  $("verdict").textContent = d.verdict === "unknown" ? "No verdict" : d.verdict;
+  $("medname").textContent = d.medicine || "";
+  $("explanation").hidden = !d.explanation; $("explanation").textContent = d.explanation || "";
+  $("findings").replaceChildren(...d.findings.map((f) => {
+    const el = document.createElement("div"); el.className = "finding " + f.light;
+    const b = document.createElement("b"); b.textContent = f.title;
+    const p = document.createElement("div"); p.textContent = f.detail;
+    const s = document.createElement("div"); s.className = "small"; s.textContent = "Source " + f.source;
+    el.append(b, p);
+    if (f.advice) { const a = document.createElement("div"); a.style.fontWeight = "600"; a.textContent = f.advice; el.append(a); }
+    el.append(s); return el;
+  }));
+  if (d.verdict === "green") { const el = document.createElement("div"); el.className = "finding green"; el.textContent = "Nothing was found in the data checked. This is not a guarantee."; $("findings").append(el); }
+  $("notes").textContent = d.notes.join(" ");
+  $("release").hidden = d.verdict === "unknown";
+}
+
+$("reviewBtn").onclick = async () => {
+  $("reviewBtn").disabled = true;
+  try {
+    const res = await fetch("/api/medipass/review", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: profile() }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    $("review").replaceChildren(...data.items.map((i) => {
+      const box = document.createElement("div"); box.className = "finding " + (i.verdict === "unknown" ? "" : i.verdict);
+      const b = document.createElement("b"); b.textContent = i.medicine + " (" + i.verdict + ")"; box.append(b);
+      if (!i.findings.length) { const n = document.createElement("div"); n.className = "small"; n.textContent = i.verdict === "unknown" ? "Not in the demo rule set, not checked." : "Nothing found in the checked data."; box.append(n); }
+      for (const f of i.findings) { const d = document.createElement("div"); d.textContent = f.title + ". " + f.detail; box.append(d); if (f.advice) { const a = document.createElement("div"); a.style.fontWeight = "600"; a.textContent = f.advice; box.append(a); } }
+      for (const m of i.mayExplain) { const d = document.createElement("div"); d.style.fontWeight = "600"; d.textContent = "Possible explanation for your complaint. " + m; box.append(d); }
+      return box;
+    }));
+  } catch (e) { alert(e.message); } finally { $("reviewBtn").disabled = false; }
+};
+$("go").onclick = run;
+$("medicine").addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+$("release").onclick = async () => {
+  const res = await fetch("/api/medipass/release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body()) });
+  const data = await res.json();
+  if (!res.ok) return alert(data.error || "Request failed");
+  $("code").textContent = data.code; $("plink").href = data.path; $("released").hidden = false;
+};
+</script>
+</body>
+</html>

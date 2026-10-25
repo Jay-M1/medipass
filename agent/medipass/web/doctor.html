@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediPass Doctor</title>
+<link rel="stylesheet" href="/assets/medipass.css">
+</head>
+<body>
+<main>
+  <h1>MediPass</h1>
+  <p class="sub">A doctor sees the record and the safety check, then approves or declines in seconds. No appointment.</p>
+  <nav class="top"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor" aria-current="page">Doctor</a><a href="/vision">Vision</a></nav>
+  <p class="small">Demo page without a login. A real version would only be open to verified clinicians.</p>
+  <div id="pending"></div>
+  <h2 style="font-size:17px">Decided</h2>
+  <div id="done"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
+
+function card(r) {
+  const c = el("div", "", "card");
+  const head = el("div", "", "row"); head.append(el("h3", r.product), el("span", r.check.verdict, "pill " + r.check.verdict));
+  c.append(head, el("div", "Patient request, " + r.prompt, "small"));
+  const p = r.profile;
+  c.append(el("div", `Takes ${p.medications.join(", ") || "nothing"}. Allergies ${p.allergies.join(", ") || "none"}. Conditions ${p.conditions.join(", ") || "none"}. Genes ${Object.entries(p.genotype).map(([g, v]) => g + " " + v).join(", ") || "none"}.`));
+  c.append(el("div", `Ring, sleep ${r.wearable.sleep_hours}h, temperature ${r.wearable.temperature_c} C, resting heart rate ${r.wearable.resting_hr}, oxygen ${r.wearable.spo2} percent (simulated).`, "small"));
+  for (const f of r.check.findings) { const d = el("div", "", "step"); const b = el("div"); b.append(el("b", f.title), el("div", f.detail, "small")); d.append(b); c.append(d); }
+  if (!r.check.findings.length) c.append(el("div", "The safety check found nothing in the available data.", "small"));
+  if (r.status === "pending") {
+    const note = el("input"); note.placeholder = "Note for the patient (optional)"; note.style.marginTop = "10px";
+    const row = el("div", "", "row"); row.style.marginTop = "10px";
+    const yes = el("button", "Approve", "primary"), no = el("button", "Decline", "ghost");
+    const send = async (decision) => { yes.disabled = no.disabled = true; await fetch(`/api/care/requests/${r.id}/decision`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision, note: note.value }) }); load(); };
+    yes.onclick = () => send("approve"); no.onclick = () => send("reject");
+    row.append(yes, no); c.append(note, row);
+  } else {
+    c.append(el("div", (r.status === "approved" ? "Approved" : "Declined") + (r.decision && r.decision.note ? ". " + r.decision.note : ""), "small"));
+  }
+  return c;
+}
+let last = "";
+async function load() {
+  const { requests } = await (await fetch("/api/care/requests")).json();
+  const snapshot = JSON.stringify(requests);
+  if (snapshot === last) return; // keeps a note the doctor is typing
+  last = snapshot;
+  const pending = requests.filter((r) => r.status === "pending"), done = requests.filter((r) => r.status !== "pending");
+  $("pending").replaceChildren(...(pending.length ? pending.map(card) : [el("p", "No requests are waiting.", "small")]));
+  $("done").replaceChildren(...(done.length ? done.map(card) : [el("p", "Nothing yet.", "small")]));
+}
+load(); setInterval(load, 4000);
+</script>
+</body>
+</html>

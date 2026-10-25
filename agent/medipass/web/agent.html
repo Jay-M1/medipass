@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediPass Agent</title>
+<link rel="stylesheet" href="/assets/medipass.css">
+</head>
+<body>
+<main>
+  <h1>MediPass</h1>
+  <p class="sub">Tell the agent what is wrong. It checks your record and your ring, then orders safely.</p>
+  <nav class="top"><a href="/app">Check</a><a href="/agent" aria-current="page">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav>
+
+  <div class="card">
+    <label for="prompt">What do you need</label>
+    <textarea id="prompt">I have a very strong headache, please get me headache tablets.</textarea>
+    <div class="row" style="margin-top:8px" id="examples"></div>
+    <div class="row" style="margin-top:12px"><button class="primary" id="go">Send to agent</button><span class="small" id="status"></span></div>
+  </div>
+
+  <details class="card">
+    <summary><b>Health record and ring</b> <span class="small">(demo data, tap to edit)</span></summary>
+    <div class="grid2">
+      <div><label for="meds">Current medicines</label><input id="meds" value="Clopidogrel, Simvastatin, Ramipril"></div>
+      <div><label for="allergies">Allergies</label><input id="allergies" value="Penicillin"></div>
+      <div><label for="conditions">Conditions</label><input id="conditions" value=""></div>
+      <div><label for="genes">Gene results (GENE: phenotype)</label><input id="genes" value="CYP2C19: poor, SLCO1B1: decreased, CYP2D6: normal"></div>
+      <div><label for="egfr">Kidney function (eGFR)</label><input id="egfr" type="number" value="52"></div>
+      <div><label for="sleep">Ring, sleep last night (hours)</label><input id="sleep" type="number" step="0.1" value="4.8"></div>
+      <div><label for="temp">Ring, temperature (C)</label><input id="temp" type="number" step="0.1" value="36.8"></div>
+    </div>
+    <p class="small">Simulated ring readings. A real build would read them from the ring's app or a health platform.</p>
+  </details>
+
+  <div id="out" hidden>
+    <div class="banner" id="banner"></div>
+    <p id="reply" style="margin-top:0"></p>
+    <div class="card" id="steps"></div>
+    <div class="card" id="cands-card"><h3>Options the agent checked</h3><div id="cands"></div></div>
+    <div class="card" id="order-card" hidden></div>
+    <div class="card" id="wait-card" hidden></div>
+    <p class="small" id="notes"></p>
+  </div>
+  <p class="small">MediPass does not replace advice from a doctor or pharmacist. Demo rule set, devnet test money, no real orders.</p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const examples = ["I have a very strong headache, please get me headache tablets.", "Ich habe starke Kopfschmerzen, hol mir bitte Tabletten.", "Please order Simvastatin for me.", "Order Amoxicillin for my sinus infection.", "This is the worst headache of my life, order me something."];
+for (const e of examples) { const b = document.createElement("button"); b.className = "chip"; b.textContent = e.length > 44 ? e.slice(0, 42) + "..." : e; b.onclick = () => { $("prompt").value = e; }; $("examples").append(b); }
+
+const list = (id) => $(id).value.split(",").map((s) => s.trim()).filter(Boolean);
+function payload() {
+  const genotype = {};
+  for (const part of list("genes")) { const [g, p] = part.split(":").map((s) => s.trim()); if (g && p) genotype[g.toUpperCase()] = p; }
+  return { prompt: $("prompt").value, profile: { medications: list("meds"), allergies: list("allergies"), conditions: list("conditions"), genotype, labs: Number.isFinite(parseFloat($("egfr").value)) ? { egfr: parseFloat($("egfr").value) } : {} }, wearable: { sleep_hours: Number($("sleep").value), temperature_c: Number($("temp").value) } };
+}
+const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
+const titles = { order: "Ordered", doctor_review: "Waiting for a doctor", urgent: "Please get medical help now", advise: "Not ordered, advice only", unknown: "I need more information" };
+let timer = null;
+
+function paymentRows(payments) {
+  const wrap = el("div");
+  for (const p of payments) {
+    const row = el("div", "", "step");
+    const label = `${p.label}, ${p.amount_usdc} USDC`;
+    row.append(el("div", p.status === "paid" ? "✓" : p.status === "failed" ? "!" : "~", "n"));
+    const body = el("div"); body.append(el("b", label), el("div", p.status === "paid" ? "Paid on Solana devnet" : p.status === "failed" ? "Payment failed. " + (p.reason || "") : "Simulated, " + (p.reason || ""), "small"));
+    if (p.explorer) { const a = el("a", "View transaction"); a.href = p.explorer; a.target = "_blank"; a.rel = "noopener"; body.append(a); }
+    row.append(body); wrap.append(row);
+  }
+  return wrap;
+}
+function showOrder(order) {
+  const c = $("order-card"); c.hidden = false; c.replaceChildren(el("h3", order.product), el("div", order.delivery, "small"), paymentRows(order.payments));
+}
+function show(d) {
+  clearInterval(timer);
+  $("out").hidden = false;
+  $("banner").className = "banner " + d.decision; $("banner").textContent = titles[d.decision] || d.decision;
+  $("reply").textContent = d.reply;
+  $("steps").replaceChildren(el("h3", "What the agent did"), ...d.steps.map((s, i) => { const r = el("div", "", "step"); const b = el("div"); b.append(el("b", s.title), el("div", s.detail, "small")); r.append(el("div", String(i + 1), "n"), b); return r; }));
+  $("cands-card").hidden = !d.candidates.length;
+  $("cands").replaceChildren(...d.candidates.map((c) => { const r = el("div", "", "step"); const b = el("div"); b.append(el("b", c.ingredient + " "), el("div", c.warnings.length ? c.warnings.join(", ") : "No warnings in the checked data.", "small")); b.firstChild.append(el("span", c.verdict, "pill " + c.verdict)); r.append(b); return r; }));
+  $("order-card").hidden = true; $("wait-card").hidden = true;
+  if (d.order) showOrder(d.order);
+  if (d.decision === "doctor_review") { $("wait-card").hidden = false; $("wait-card").replaceChildren(el("h3", "Doctor review in progress"), el("div", "Open the Doctor page in another tab to approve or reject this request.", "small")); poll(d.requestId); }
+  $("notes").textContent = [...(d.notes || [])].join(" ");
+}
+function poll(id) {
+  timer = setInterval(async () => {
+    const r = await (await fetch("/api/care/requests/" + id)).json();
+    if (r.status === "pending") return;
+    clearInterval(timer);
+    const c = $("wait-card"); c.replaceChildren();
+    if (r.status === "approved") { c.append(el("h3", "Doctor approved")); if (r.decision && r.decision.note) c.append(el("div", "Note, " + r.decision.note, "small")); $("banner").className = "banner order"; $("banner").textContent = "Approved and ordered"; showOrder(r.order); }
+    else { c.append(el("h3", "Doctor declined"), el("div", (r.decision && r.decision.note) || "No note given.", "small")); $("banner").className = "banner advise"; $("banner").textContent = "Not approved"; }
+  }, 2000);
+}
+$("go").onclick = async () => {
+  $("go").disabled = true; $("status").textContent = "The agent is working...";
+  try {
+    const res = await fetch("/api/care/agent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload()) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    show(data); $("status").textContent = "";
+  } catch (e) { $("status").textContent = e.message; } finally { $("go").disabled = false; }
+};
+</script>
+</body>
+</html>
