@@ -1,5 +1,5 @@
 {
   "functions": {
-    "index.py": { "maxDuration": 60 }
+    "index.py": { "maxDuration": 60, "includeFiles": "agent/**" }
   }
 }
