@@ -8,19 +8,25 @@ POST /api/medipass/release takes the same body and returns a signed pharmacy cod
 GET /api/medipass/release/{code} reads a code. The pharmacy page for it is /r/{code}.
 """
 
+import base64
+import binascii
 import json
+import logging
 import os
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from agent.ai.llm import MissingLlmKeyError, ask_llm_image
 from agent.medipass import release
 from agent.medipass.engine import check, known_medicines, parse_profile, review
 from agent.medipass.explain import explain
+from agent.medipass.scan import MAX_IMAGE_BYTES, ScanError, identify
 from agent.payments.server import PaidRouteOptions, paid_route
 
 MAX_NAME_CHARS = 100
+logger = logging.getLogger("agent")
 MAX_ITEMS = 50
 
 
@@ -71,6 +77,35 @@ def register(app: FastAPI) -> None:
     @app.post("/api/medipass/check")
     async def free_check(request: Request) -> JSONResponse:
         return await _run_check(request)
+
+    @app.post("/api/medipass/scan")
+    async def scan(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            body = None
+        image = body.get("image") if isinstance(body, dict) else None
+        if not isinstance(image, str) or not image:
+            return JSONResponse({"error": 'Send JSON like { "image": "<base64 or data URL>", "mediaType": "image/jpeg" }'}, status_code=400)
+        media_type = body.get("mediaType") if isinstance(body.get("mediaType"), str) else "image/jpeg"
+        if image.startswith("data:"):
+            header, _, image = image.partition(",")
+            media_type = header[5:].split(";")[0] or media_type
+        if len(image) > MAX_IMAGE_BYTES * 4 // 3 + 16:
+            return JSONResponse({"error": "The image is larger than 3 MB."}, status_code=413)
+        try:
+            raw = base64.b64decode(image, validate=True)
+        except (binascii.Error, ValueError):
+            return JSONResponse({"error": "The image is not valid base64."}, status_code=400)
+        try:
+            return JSONResponse(await identify(raw, media_type, ask_llm_image))
+        except ScanError as err:
+            return JSONResponse({"error": str(err)}, status_code=400)
+        except MissingLlmKeyError as err:
+            return JSONResponse({"error": str(err)}, status_code=503)
+        except Exception as err:
+            logger.error("Scan failed (%s)", type(err).__name__)
+            return JSONResponse({"error": "The photo could not be read right now. Try again or type the name."}, status_code=502)
 
     @app.post("/api/medipass/review")
     async def review_medicines(request: Request) -> JSONResponse:

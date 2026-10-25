@@ -27,11 +27,15 @@ class ClaudeError(Exception):
         self.code = code
 
 
-async def ask_claude(prompt: str, model: str | None = None, transport: httpx.AsyncBaseTransport | None = None) -> str:
+async def ask_claude(prompt: str, model: str | None = None, transport: httpx.AsyncBaseTransport | None = None, image: tuple[str, str] | None = None) -> str:
+    """`image` is (mime type, base64 data) and is sent together with the prompt."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise MissingClaudeKeyError()
-    body = {"model": model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL, "max_tokens": MAX_TOKENS, "messages": [{"role": "user", "content": prompt}]}
+    content: str | list[dict[str, object]] = prompt
+    if image:
+        content = [{"type": "image", "source": {"type": "base64", "media_type": image[0], "data": image[1]}}, {"type": "text", "text": prompt}]
+    body = {"model": model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL, "max_tokens": MAX_TOKENS, "messages": [{"role": "user", "content": content}]}
     headers = {"x-api-key": api_key, "anthropic-version": API_VERSION, "content-type": "application/json"}
     async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS, transport=transport) as client:
         res = await client.post(API_URL, json=body, headers=headers)

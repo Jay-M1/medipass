@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/assets/favicon.png" type="image/png">
+<meta name="theme-color" content="#012a57">
 <title>MediPass</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#14181f; --muted:#5b6472; --line:#e3e6ea; --green:#1f9d55; --yellow:#e0a100; --red:#d6382f; --accent:#2457d6; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#0e1116; --card:#171b22; --ink:#eef1f5; --muted:#9aa3b2; --line:#272d37; --accent:#6f95ff; } }
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#14181f; --muted:#5b6472; --line:#e3e6ea; --green:#1f9d55; --yellow:#e0a100; --red:#d6382f; --accent:#0a4a96; --navy:#012a57; --btn:#012a57; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#07121f; --card:#0e2038; --ink:#eef3fa; --muted:#9db0c8; --line:#1d3452; --accent:#8dbbff; --btn:#2a6fd1; } }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
   main { max-width:760px; margin:0 auto; padding:24px 16px 56px; }
@@ -20,7 +22,8 @@
   input, textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; }
   .row { display:flex; gap:8px; flex-wrap:wrap; }
   .row > input { flex:1; min-width:180px; }
-  button.primary { padding:10px 16px; border:0; border-radius:10px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button.primary { padding:10px 16px; border:0; border-radius:10px; background:var(--btn); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button.ghost { padding:10px 16px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); font:inherit; cursor:pointer; }
   button.chip { padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--ink); font:inherit; font-size:14px; cursor:pointer; }
   .light { display:flex; align-items:center; gap:14px; }
   .dot { width:56px; height:56px; border-radius:50%; flex:none; background:var(--muted); }
@@ -35,11 +38,16 @@
   .lock .time { font-size:56px; font-weight:300; }
   .lock .sos { background:rgba(255,255,255,.12); border-radius:14px; padding:12px; margin-top:16px; text-align:left; font-size:14px; }
   [hidden] { display:none !important; }
+.brand { background:linear-gradient(135deg,#012a57,#013369); border-bottom:1px solid rgba(255,255,255,.08); }
+  .brand-in { max-width:760px; margin:0 auto; padding:10px 16px; }
+  .brand img { display:block; height:60px; width:auto; }
+  .sr { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
 </style>
 </head>
 <body>
+<header class="brand"><div class="brand-in"><a href="/app" aria-label="MediPass"><img src="/assets/logo.png" alt="MediPass" width="163" height="60"></a></div></header>
 <main>
-  <h1>MediPass</h1>
+  <h1 class="sr">MediPass</h1>
   <p class="sub">Does this medicine work for me, and is it safe? A traffic light in seconds.</p>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"><a href="/app" style="padding:7px 14px;border:1px solid var(--accent);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px;font-weight:600">Check</a><a href="/agent" style="padding:7px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px">Agent</a><a href="/doctor" style="padding:7px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px">Doctor</a><a href="/vision" style="padding:7px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px">Vision</a></div>
   <nav role="tablist">
@@ -49,6 +57,18 @@
   </nav>
 
   <section id="p-check">
+    <div class="card" id="scanCard">
+      <b>Scan a package</b>
+      <p class="small" style="margin:2px 0 10px">Take a photo of the box and MediPass reads the name, or scan the barcode.</p>
+      <div class="row">
+        <button class="primary" id="photoBtn">Take or choose a photo</button>
+        <button class="ghost" id="barcodeBtn">Scan barcode</button>
+        <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
+      </div>
+      <video id="cam" playsinline muted hidden style="width:100%;max-height:320px;border-radius:10px;margin-top:10px;background:#000"></video>
+      <div id="scanOut" style="margin-top:10px"></div>
+      <p class="small" style="margin:8px 0 0">The photo is sent to an AI model once, to read the name on the box, and is not stored. Barcodes are read on your device. You always confirm what was read before a traffic light is shown.</p>
+    </div>
     <div class="card">
       <label for="medicine">Medicine (name or brand)</label>
       <div class="row">
@@ -172,6 +192,88 @@ $("reviewBtn").onclick = async () => {
     }));
   } catch (e) { alert(e.message); } finally { $("reviewBtn").disabled = false; }
 };
+
+// Package scanning. A photo goes to the AI model to read the printed name, a barcode is read in the browser.
+const codeBook = {
+  all() { try { return JSON.parse(localStorage.getItem("medipassCodes") || "{}"); } catch { return {}; } },
+  learn(code, name) { try { const m = codeBook.all(); m[code] = name; localStorage.setItem("medipassCodes", JSON.stringify(m)); } catch {} },
+};
+const hasDetector = "BarcodeDetector" in window;
+let pendingCode = null, camStream = null, camLoop = null;
+const scanEl = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
+function scanSay(...nodes) { $("scanOut").replaceChildren(...nodes.map((n) => (typeof n === "string" ? scanEl("div", n) : n))); }
+
+function confirmBox(title, detail, ingredient, thumb) {
+  const box = scanEl("div"); box.className = "finding";
+  const row = scanEl("div"); row.className = "row";
+  if (thumb) { const img = scanEl("img"); img.src = thumb; img.alt = "Your photo"; img.style.cssText = "height:64px;border-radius:8px"; row.append(img); }
+  const text = scanEl("div"); text.append(scanEl("b", title), scanEl("div", detail, "small")); row.append(text); box.append(row);
+  if (ingredient) {
+    const actions = scanEl("div"); actions.className = "row"; actions.style.marginTop = "8px";
+    const yes = scanEl("button", "Yes, check " + ingredient, "primary"), no = scanEl("button", "Not right", "ghost");
+    yes.onclick = () => { if (pendingCode) { codeBook.learn(pendingCode, ingredient); pendingCode = null; } $("medicine").value = ingredient; scanSay(); run(); };
+    no.onclick = () => { pendingCode = null; scanSay("Okay. Try another photo, or type the name above."); };
+    actions.append(yes, no); box.append(actions);
+  }
+  return box;
+}
+
+async function toJpeg(file, max = 1280) {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas"); canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  return { bmp, dataUrl: canvas.toDataURL("image/jpeg", 0.85) };
+}
+async function readCode(source) {
+  if (!hasDetector) return null;
+  try { const found = await new BarcodeDetector().detect(source); return found.length ? found[0].rawValue : null; } catch { return null; }
+}
+
+$("photoBtn").onclick = () => $("photoInput").click();
+$("photoInput").onchange = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  scanSay("Reading the photo...");
+  try {
+    const { bmp, dataUrl } = await toJpeg(file);
+    const code = await readCode(bmp);
+    if (code) pendingCode = code;
+    const res = await fetch("/api/medipass/scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ image: dataUrl }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    if (!data.isMedicinePackage) return scanSay("This does not look like a medicine package. Try again or type the name.");
+    const name = [data.brand, data.strength].filter(Boolean).join(" ") || data.ingredient || "a medicine";
+    const unsure = data.confidence === "high" ? "" : " I am not fully sure, please check the name on your box.";
+    if (data.known) scanSay(confirmBox("I read " + name, "Active ingredient " + data.known + "." + unsure + (code ? " Barcode " + code + " will be remembered." : ""), data.known, dataUrl));
+    else scanSay(confirmBox("I read " + name, "That medicine is not in our demo rule set, so no traffic light can be shown." + unsure, null, dataUrl));
+  } catch (err) {
+    scanSay(err.message || "The photo could not be read. Type the name instead.");
+  } finally { event.target.value = ""; }
+};
+
+function stopCam() {
+  clearInterval(camLoop); camLoop = null;
+  if (camStream) camStream.getTracks().forEach((t) => t.stop());
+  camStream = null; $("cam").hidden = true; $("barcodeBtn").textContent = "Scan barcode";
+}
+function onCode(code) {
+  const known = codeBook.all()[code];
+  if (known) return scanSay(confirmBox("Barcode " + code, "You told me earlier that this is " + known + ".", known));
+  pendingCode = code;
+  scanSay(confirmBox("Barcode " + code + " read", "This code is not in the demo yet. Take one photo of the box and I will remember the code, so next time the barcode alone is enough.", null));
+}
+$("barcodeBtn").onclick = async () => {
+  if (camStream) return stopCam();
+  if (!hasDetector) return scanSay("This browser cannot read barcodes. Use the photo button, or open MediPass in Chrome on a phone.");
+  try { camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } }); }
+  catch { return scanSay("The camera is not available. Allow camera access, or use the photo button."); }
+  const video = $("cam"); video.srcObject = camStream; video.hidden = false; await video.play();
+  $("barcodeBtn").textContent = "Stop scanning"; scanSay("Hold the barcode in front of the camera.");
+  const detector = new BarcodeDetector();
+  camLoop = setInterval(async () => { try { const found = await detector.detect(video); if (found.length) { const code = found[0].rawValue; stopCam(); onCode(code); } } catch {} }, 300);
+};
+
 $("go").onclick = run;
 $("medicine").addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
 $("release").onclick = async () => {

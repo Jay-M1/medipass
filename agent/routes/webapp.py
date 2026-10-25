@@ -20,9 +20,9 @@ def _pharmacy_page(content: dict) -> str:
     minutes = max(0, int((content["expiresAt"] - time.time()) // 60))
     warnings = "".join(f'<li style="border-left:4px solid {COLOURS.get(w["light"], "#5b6472")};padding:4px 10px;margin:8px 0;list-style:none">{html.escape(str(w["title"]))}</li>' for w in content["warnings"])
     return (
-        '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MediPass for pharmacy</title></head>'
+        '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MediPass for pharmacy</title><link rel="icon" href="/assets/favicon.png"></head>'
         '<body style="font:16px/1.5 system-ui,sans-serif;max-width:520px;margin:0 auto;padding:24px 16px">'
-        f'<h1 style="margin:0">MediPass</h1><p style="color:#5b6472">Warnings only. No other patient data is shared.</p>'
+        f'<div style="background:linear-gradient(135deg,#012a57,#013369);margin:-24px -16px 16px;padding:10px 16px"><img src="/assets/logo.png" alt="MediPass" height="48" style="display:block"></div><p style="color:#5b6472">Warnings only. No other patient data is shared.</p>'
         f'<div style="display:flex;align-items:center;gap:14px"><div style="width:56px;height:56px;border-radius:50%;background:{colour}"></div>'
         f'<div><b style="text-transform:capitalize;font-size:22px">{html.escape(verdict)}</b><br>{html.escape(str(content.get("medicine")))}</div></div>'
         f'<ul style="padding:0">{warnings or "<li style=list-style:none>No warnings in the checked data.</li>"}</ul>'
@@ -40,7 +40,16 @@ def register(app: FastAPI) -> None:
     for path, file in PAGES.items():
         page(path, file)
 
-    @app.get("/assets/medipass.css")
+    @app.get("/assets/{name}")
+    async def asset(name: str) -> Response:
+        files = {"logo.png": ("logo.png", "image/png"), "favicon.png": ("favicon.png", "image/png"), "medipass.css": ("shared.css", "text/css")}
+        if name not in files:
+            return Response("Not found", status_code=404)
+        file, kind = files[name]
+        body = (WEB / file).read_bytes()
+        return Response(body, media_type=kind, headers={"cache-control": "public, max-age=300"})
+
+    @app.get("/assets/medipass.css", include_in_schema=False)
     async def stylesheet() -> Response:
         return Response((WEB / "shared.css").read_text(encoding="utf-8"), media_type="text/css", headers={"cache-control": "public, max-age=300"})
 
