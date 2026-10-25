@@ -21,6 +21,12 @@ RED_FLAGS: tuple[tuple[str, str], ...] = (
     (r"pregnan|schwanger", "pregnancy"),
 )
 
+# Not emergencies, but a pain reliever should not be picked for these without a doctor.
+CAUTIONS: tuple[tuple[str, str], ...] = (
+    (r"liver|leber|upper right (belly|abdomen)|right upper (belly|abdomen)|rechter oberbauch|oberbauch rechts|gallen|gall bladder|gallbladder", "pain around the liver or gallbladder"),
+    (r"yellow (skin|eyes)|yellowing|gelbsucht|gelbe haut|augen (sind )?gelb|dark urine|dunkler urin", "yellow skin or eyes, or dark urine"),
+)
+
 FEVER_C = 38.5
 LOW_SPO2 = 92
 
@@ -40,3 +46,8 @@ def triage(prompt: str, wearable: dict[str, Any]) -> Triage:
     if isinstance(spo2, (int, float)) and spo2 < LOW_SPO2:
         reasons.append(f"a low blood oxygen reading ({spo2:.0f} percent) from your ring")
     return Triage(bool(reasons), tuple(reasons))
+
+
+def cautions(prompt: str) -> tuple[str, ...]:
+    text = prompt.lower()
+    return tuple(label for pattern, label in CAUTIONS if re.search(pattern, text))

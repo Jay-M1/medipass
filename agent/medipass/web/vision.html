@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="/assets/medipass.css?v=2">
 </head>
 <body class="doc">
-<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision" aria-current="page">Vision</a></nav></div></header>
+<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision" aria-current="page">Vision</a></nav></div><div class="who"><div class="who-in">I am MediPass, connected to the personal data of <b id="who">Max Mustermann</b>.</div></div></header>
 <main>
   <h1 class="sr">MediPass</h1>
   <p class="sub">From a safe check today to medicine made for one person tomorrow.</p>
@@ -28,17 +28,17 @@
     <div class="step"><div><b>Only what is needed is shared</b><div class="small">A pharmacist gets a short lived code with the warnings only, never the whole record.</div></div></div>
   </div>
 
-  <h2>One example, Anna, 58</h2>
+  <h2>One example, Max Mustermann, 58</h2>
   <div class="card">
     <p class="small" style="margin:0 0 8px">All values are invented. The links between gene and medicine follow public guidelines such as CPIC.</p>
     <table>
       <tr><th>Light</th><th>What MediPass finds</th><th>What it suggests</th></tr>
-      <tr><td><span class="pill red">red</span></td><td>Clopidogrel after a stent probably works poorly for her, because she clears it slowly (CYP2C19).</td><td>Ask the cardiologist whether prasugrel or ticagrelor would suit her better.</td></tr>
-      <tr><td><span class="pill yellow">yellow</span></td><td>Her muscle pain fits simvastatin together with her SLCO1B1 result.</td><td>Ask about a lower dose or another statin.</td></tr>
+      <tr><td><span class="pill red">red</span></td><td>Clopidogrel after a stent probably works poorly for this patient, because the body clears it slowly (CYP2C19).</td><td>Ask the cardiologist whether prasugrel or ticagrelor would suit this patient better.</td></tr>
+      <tr><td><span class="pill yellow">yellow</span></td><td>The muscle pain fits simvastatin together with the SLCO1B1 result.</td><td>Ask about a lower dose or another statin.</td></tr>
       <tr><td><span class="pill yellow">yellow</span></td><td>Ibuprofen adds bleeding risk with clopidogrel, can weaken ramipril and strains kidneys that already work less well.</td><td>Paracetamol is usually the better choice. Ask a pharmacist.</td></tr>
-      <tr><td><span class="pill red">red</span></td><td>Amoxicillin, because of her penicillin allergy.</td><td>Do not take it. Ask for an alternative.</td></tr>
+      <tr><td><span class="pill red">red</span></td><td>Amoxicillin, because of the penicillin allergy.</td><td>Do not take it. Ask for an alternative.</td></tr>
     </table>
-    <p class="small" style="margin:8px 0 0">No single source shows this. The doctor does not see the gene, the pharmacy does not see the ibuprofen, and Anna thinks the muscle pain comes with age. Joining the sources reveals two possible treatment problems and an explanation for her complaint.</p>
+    <p class="small" style="margin:8px 0 0">No single source shows this. The doctor does not see the gene, the pharmacy does not see the ibuprofen, and the patient thinks the muscle pain comes with age. Joining the sources reveals two possible treatment problems and an explanation for the complaint.</p>
   </div>
 
   <h2>Where the data comes from, and its limits</h2>
@@ -117,5 +117,6 @@
 
   <p class="disclaimer">MediPass does not replace advice from a doctor or pharmacist.</p>
 </main>
+<script>try{const n=localStorage.getItem("medipassName");if(n)document.getElementById("who").textContent=n}catch{}</script>
 </body>
 </html>

@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="/assets/medipass.css?v=2">
 </head>
 <body>
-<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app" aria-current="page">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav></div></header>
+<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app" aria-current="page">Check</a><a href="/agent">Agent</a><a href="/doctor">Doctor</a><a href="/vision">Vision</a></nav></div><div class="who"><div class="who-in">I am MediPass, connected to the personal data of <b id="who">Max Mustermann</b>.</div></div></header>
 <main>
   <h1 class="sr">MediPass</h1>
   <p class="sub">Does this medicine work for me, and is it safe? A traffic light in seconds.</p>
@@ -20,27 +20,27 @@
   </nav>
 
   <section id="p-check" role="tabpanel" aria-labelledby="t-check">
-    <div class="card">
-      <label class="ask" for="medicine">Which medicine do you want to check?</label>
-      <div class="row">
-        <input id="medicine" class="big" placeholder="Name or brand, for example Ibuprofen" autocomplete="off">
-        <button class="primary" id="go">Check</button>
-      </div>
-      <div class="row" style="margin-top:12px"><span class="try">Try</span><span class="row" id="quick" style="gap:8px"></span></div>
-      <label for="lang-en">Explanation language</label>
-      <div class="seg" role="group" aria-label="Explanation language"><button class="chip" id="lang-en" aria-pressed="true">English</button><button class="chip" id="lang-de" aria-pressed="false">Deutsch</button></div>
-    </div>
     <div class="card" id="scanCard">
-      <span class="card-title">Or scan the package</span>
-      <p class="small card-intro">Take a photo of the box and MediPass reads the name, or scan the barcode.</p>
+      <span class="card-title">Scan the package</span>
+      <p class="small card-intro">Hold your phone over the barcode, or take a photo of the box. MediPass shows what is good and what to watch.</p>
       <div class="row">
+        <button class="primary" id="barcodeBtn">Scan barcode</button>
         <button class="ghost" id="photoBtn">Take or choose a photo</button>
-        <button class="ghost" id="barcodeBtn">Scan barcode</button>
         <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
       </div>
       <video id="cam" playsinline muted hidden style="width:100%;max-height:320px;border-radius:8px;margin-top:14px;background:#000"></video>
       <div id="scanOut" aria-live="polite"></div>
       <p class="small" style="margin:14px 0 0;max-width:40rem">The photo is sent to an AI model once, to read the name on the box, and is not stored. Barcodes are read on your device. You always confirm what was read before a traffic light is shown.</p>
+    </div>
+    <div class="card">
+      <label class="ask" for="medicine">Or type the name of a medicine</label>
+      <div class="row">
+        <input id="medicine" class="big" placeholder="Name or brand, for example Ibuprofen" autocomplete="off">
+        <button class="primary" id="go">Check</button>
+      </div>
+      <div class="row" style="margin-top:12px"><span class="try">Try</span><span class="row" id="quick" style="gap:8px"></span></div>
+      <label for="lang-en">Explanation and voice language</label>
+      <div class="seg" role="group" aria-label="Explanation and voice language"><button class="chip" id="lang-en" aria-pressed="true">English</button><button class="chip" id="lang-de" aria-pressed="false">Deutsch</button></div>
     </div>
     <div class="card" id="result" hidden aria-live="polite">
       <div class="light">
@@ -48,14 +48,30 @@
         <div class="light-text"><div id="medname"></div><div class="verdict" id="verdict"></div><div class="meaning" id="meaning"></div></div>
       </div>
       <p id="explanation" hidden></p>
-      <div id="findings"></div>
+      <div class="lists">
+        <div><h4>Good</h4><ul id="goodList"></ul></div>
+        <div><h4>To watch</h4><div id="findings"></div></div>
+      </div>
       <div id="notes" class="small"></div>
-      <div class="row" style="margin-top:12px"><button class="primary" id="release">Release for pharmacy</button></div>
+      <div class="row" style="margin-top:12px"><button class="ghost" id="release">Release for pharmacy</button></div>
       <div id="released" hidden style="margin-top:16px">
         <div class="small">Shows only the warnings, never your profile. Valid for 15 minutes.</div>
         <div class="code" id="code"></div>
         <p class="small"><a id="plink" target="_blank" rel="noopener">Open the pharmacy view</a></p>
       </div>
+    </div>
+    <div class="card" id="askCard">
+      <label class="card-title" for="ask">Tell MediPass what you need</label>
+      <p class="small card-intro">For example pain, an infection or heartburn. Type it or say it. The agent checks your record, and can buy for you.</p>
+      <textarea id="ask" class="big" rows="2" placeholder="For example, I have a bad headache, get me something."></textarea>
+      <div class="row askrow">
+        <button class="primary" id="askBtn">Ask</button>
+        <button class="ghost mic" id="micBtn" aria-pressed="false" hidden>Speak</button>
+        <label class="check"><input type="checkbox" id="autoBuy" checked> Let the agent buy for me</label>
+      </div>
+      <div class="row" style="margin-top:12px"><span class="try">Try</span><span class="row" id="askChips" style="gap:8px"></span></div>
+      <div id="askOut" aria-live="polite"></div>
+      <p class="small" style="margin:14px 0 0;max-width:40rem">Speech recognition runs in your browser and may send the audio to your browser vendor. Antibiotics and other prescription medicines always go to a doctor first.</p>
     </div>
     <div class="card">
       <span class="card-title">Review what you already take</span>
@@ -67,7 +83,8 @@
 
   <section id="p-profile" role="tabpanel" aria-labelledby="t-profile" hidden>
     <div class="card" style="max-width:36rem">
-      <p class="small">Demo profile of Anna, 58 (all values invented, the gene and drug links follow public guidelines). Medication list, allergies and gene results would come from the patient record and a genetic report. Everything stays in your browser until you press Check.</p>
+      <p class="small">Demo profile of Max Mustermann, 58 (all values invented, the gene and drug links follow public guidelines). Medication list, allergies and gene results would come from the patient record and a genetic report. Everything stays in your browser until you press Check.</p>
+      <label for="name">Your name (shown at the top of every page)</label><input id="name" value="Max Mustermann" autocomplete="name">
       <label for="meds">Current medicines (comma separated)</label><input id="meds" value="Clopidogrel, Simvastatin, Ramipril">
       <label for="allergies">Allergies (e.g. penicillin, NSAID)</label><input id="allergies" value="Penicillin">
       <label for="conditions">Conditions (e.g. stomach ulcer, chronic kidney disease)</label><input id="conditions" value="">
@@ -82,10 +99,10 @@
       <div class="time">9:41</div>
       <div>Emergency information</div>
       <div class="sos">
-        <b>Anna Example, 58</b> (demo data)<br>
+        <b>Max Mustermann, 58</b> (demo data)<br>
         Takes clopidogrel after a stent. Allergic to penicillin.<br>
         Advance directive on file. No resuscitation if there is no realistic chance of recovery.<br>
-        Contact in an emergency, her daughter (demo number).
+        Contact in an emergency, a relative (demo number).
       </div>
     </div>
     <p class="small" style="text-align:center">Concept screen. In the app this card is readable from the lock screen without unlocking.</p>
@@ -125,8 +142,20 @@ async function run() {
   } catch (e) { alert(e.message); } finally { $("go").disabled = false; }
 }
 
+function goodLines(d, p) {
+  if (d.verdict === "unknown") return [];
+  const kinds = new Set(d.findings.map((f) => f.kind)), out = [];
+  if (p.medications.length && !kinds.has("interaction")) out.push("No clash with the medicines you take now.");
+  if (p.allergies.length && !kinds.has("allergy")) out.push("Does not match your allergies.");
+  if (Object.keys(p.genotype).length && !kinds.has("pharmacogenetics")) out.push("Your gene results raise no concern for it in our rules.");
+  if ((p.conditions.length || p.labs.egfr !== undefined) && !kinds.has("condition")) out.push("Fits your conditions and kidney values.");
+  return out;
+}
 function show(d) {
   $("result").hidden = false; $("released").hidden = true;
+  const lines = goodLines(d, profile());
+  $("goodList").replaceChildren(...(lines.length ? lines : ["Nothing in the data checked speaks for or against it."]).map((t) => { const li = document.createElement("li"); li.textContent = t; if (!lines.length) li.style.paddingLeft = "0"; return li; }));
+  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
   $("dot").className = "dot " + (d.verdict === "unknown" ? "" : d.verdict);
   $("verdict").textContent = d.verdict === "unknown" ? "No verdict" : d.verdict;
   $("meaning").textContent = meanings[d.verdict] || meanings.unknown;
@@ -243,6 +272,93 @@ $("barcodeBtn").onclick = async () => {
   const detector = new BarcodeDetector();
   camLoop = setInterval(async () => { try { const found = await detector.detect(video); if (found.length) { const code = found[0].rawValue; stopCam(); onCode(code); } } catch {} }, 300);
 };
+
+
+// Your name at the top of the page.
+const savedName = (() => { try { return localStorage.getItem("medipassName"); } catch { return null; } })();
+if (savedName) { $("name").value = savedName; $("who").textContent = savedName; }
+$("name").addEventListener("input", () => { const n = $("name").value.trim() || "Max Mustermann"; $("who").textContent = n; try { localStorage.setItem("medipassName", n); } catch {} });
+
+// Ask the agent. It checks the record, may propose or buy, and sends prescription medicines to a doctor.
+const askLabels = { order: "Ordered", proposal: "Suggestion, waiting for you", doctor_review: "Waiting for a doctor", urgent: "Please get medical help now", advise: "Not ordered, advice only", unknown: "I need more information" };
+const askExamples = ["I have a headache, get me something.", "I have pain in my liver.", "I have a bladder infection, I need an antibiotic.", "Ich habe Sodbrennen, bestell mir etwas."];
+for (const t of askExamples) { const b = document.createElement("button"); b.className = "chip"; b.textContent = t.length > 38 ? t.slice(0, 36) + "..." : t; b.onclick = () => { $("ask").value = t; }; $("askChips").append(b); }
+let askTimer = null;
+const mk = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
+
+function payRows(payments) {
+  const wrap = mk("div");
+  for (const p of payments) {
+    const row = mk("div", "", "step"), body = mk("div");
+    row.append(mk("div", p.status === "paid" ? "✓" : p.status === "failed" ? "!" : "~", "n"));
+    body.append(mk("b", p.label + ", " + p.amount_usdc + " USDC"), mk("div", p.status === "paid" ? "Paid on Solana devnet" : p.status === "failed" ? "Payment failed. " + (p.reason || "") : "Simulated, no real transfer", "small"));
+    if (p.explorer) { const a = mk("a", "View transaction"); a.href = p.explorer; a.target = "_blank"; a.rel = "noopener"; body.append(a); }
+    row.append(body); wrap.append(row);
+  }
+  return wrap;
+}
+function orderBlock(order) { const box = mk("div"); box.style.marginTop = "14px"; box.append(mk("b", order.product), mk("div", order.delivery, "small"), payRows(order.payments)); return box; }
+
+function pollDoctor(id, slot, bannerEl) {
+  clearInterval(askTimer);
+  askTimer = setInterval(async () => {
+    try {
+      const r = await (await fetch("/api/care/requests/" + id)).json();
+      if (r.status === "pending") return;
+      clearInterval(askTimer); slot.replaceChildren();
+      if (r.status === "approved") { bannerEl.className = "banner order"; bannerEl.textContent = "Approved and ordered"; if (r.decision && r.decision.note) slot.append(mk("div", "Doctor's note, " + r.decision.note, "small")); slot.append(orderBlock(r.order)); }
+      else { bannerEl.className = "banner advise"; bannerEl.textContent = "Not approved"; slot.append(mk("div", (r.decision && r.decision.note) || "The doctor declined and gave no note.", "small")); }
+    } catch {}
+  }, 2000);
+}
+async function buyNow(proposal, slot, button) {
+  button.disabled = true;
+  try {
+    const res = await fetch("/api/care/buy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ingredient: proposal.ingredient, profile: profile() }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    button.remove(); slot.append(orderBlock(data.order));
+  } catch (e) { button.disabled = false; slot.append(mk("div", e.message, "small")); }
+}
+function renderAsk(d) {
+  const banner = mk("div", askLabels[d.decision] || d.decision, "banner " + d.decision), slot = mk("div"), nodes = [banner, mk("p", d.reply)];
+  if (d.proposal) { const buy = mk("button", "Buy now, " + d.proposal.price_usdc + " USDC", "primary"); buy.onclick = () => buyNow(d.proposal, slot, buy); nodes.push(buy); }
+  if (d.order) nodes.push(orderBlock(d.order));
+  if (d.decision === "doctor_review") { slot.append(mk("div", "A doctor is looking at your record. Open the Doctor page in another tab to approve it.", "small")); pollDoctor(d.requestId, slot, banner); }
+  nodes.push(slot);
+  if (d.steps && d.steps.length) { const det = mk("details", "", "how"); det.append(mk("summary", "What the agent checked")); for (const [i, s] of d.steps.entries()) { const row = mk("div", "", "step"), body = mk("div"); body.append(mk("b", s.title), mk("div", s.detail, "small")); row.append(mk("div", String(i + 1), "n"), body); det.append(row); } nodes.push(det); }
+  $("askOut").replaceChildren(...nodes);
+  $("askOut").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+async function askAgent() {
+  const text = $("ask").value.trim();
+  if (!text) return;
+  clearInterval(askTimer); $("askBtn").disabled = true; $("askOut").replaceChildren(mk("p", "The agent is working...", "small"));
+  try {
+    const res = await fetch("/api/care/agent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: text, profile: profile(), autoBuy: $("autoBuy").checked }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    renderAsk(data);
+  } catch (e) { $("askOut").replaceChildren(mk("p", e.message || "The agent could not answer. Try again.", "small")); } finally { $("askBtn").disabled = false; }
+}
+$("askBtn").onclick = askAgent;
+$("ask").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askAgent(); } });
+
+// Voice. The browser's speech recognition fills the box, and the question goes out when you stop talking.
+const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+if (Speech) {
+  $("micBtn").hidden = false;
+  $("micBtn").onclick = () => {
+    if (rec) return rec.stop();
+    rec = new Speech(); rec.lang = lang === "de" ? "de-DE" : "en-GB"; rec.interimResults = true; rec.continuous = false;
+    const base = $("ask").value.trim() ? $("ask").value.trim() + " " : "";
+    rec.onresult = (e) => { let t = ""; for (const r of e.results) t += r[0].transcript; $("ask").value = base + t; };
+    rec.onerror = () => { $("askOut").replaceChildren(mk("p", "The microphone is not available. Allow access, or type instead.", "small")); };
+    rec.onend = () => { rec = null; $("micBtn").textContent = "Speak"; $("micBtn").setAttribute("aria-pressed", "false"); if ($("ask").value.trim()) askAgent(); };
+    rec.start(); $("micBtn").textContent = "Listening, tap to stop"; $("micBtn").setAttribute("aria-pressed", "true");
+  };
+}
 
 $("go").onclick = run;
 $("medicine").addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });

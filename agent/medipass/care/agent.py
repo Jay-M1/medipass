@@ -16,7 +16,7 @@ from agent.medipass.knowledge import ALIASES
 
 from .catalog import CATALOG, CONSULT_FEE_USDC, INTENTS, Product
 from .store import store
-from .triage import Triage, triage
+from .triage import Triage, cautions, triage
 
 # Made up demo readings from a smart ring. A real build would read them from the ring's app or health platform.
 DEMO_WEARABLE: dict[str, Any] = {"device": "Demo ring", "resting_hr": 68, "hrv_ms": 41, "sleep_hours": 4.8, "temperature_c": 36.8, "spo2": 97, "steps": 3200}
@@ -111,8 +111,39 @@ def _result(prompt: str, intent: str | None, tri: Any, steps: list[dict[str, str
 Understand = Callable[[str], Awaitable[dict[str, Any] | None]]
 
 
-async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understand: Understand | None = None) -> dict[str, Any]:
-    """`understand` is the model's reading of the sentence. Without it only the keyword rules are used."""
+def _antibiotic_findings(profile: Profile) -> list[dict[str, str]]:
+    """What the record says that matters when a doctor picks an antibiotic. MediPass shows flags and never picks the antibiotic."""
+    findings: list[dict[str, str]] = []
+    allergies = " ".join(profile.allergies).lower()
+    if "penicillin" in allergies or "amoxicillin" in allergies:
+        findings.append({"light": "red", "kind": "allergy", "title": "Penicillin allergy", "detail": "Allergy record. Penicillins such as amoxicillin are not suitable.", "source": "Allergy record", "advice": "Choose an antibiotic from another group."})
+    egfr = profile.labs.get("egfr")
+    if egfr is not None and egfr < 60:
+        findings.append({"light": "yellow", "kind": "condition", "title": "Reduced kidney function", "detail": f"eGFR {egfr:g}. Some antibiotics need a lower dose.", "source": "Lab value", "advice": "Check the dose against kidney function."})
+    if profile.medications:
+        findings.append({"light": "yellow", "kind": "interaction", "title": "Other medicines in use", "detail": "Takes " + ", ".join(profile.medications) + ". Check for interactions with the antibiotic you choose.", "source": "Medication list", "advice": "Check interactions."})
+    return findings
+
+
+async def _ask_doctor_about_antibiotic(prompt: str, profile: Profile, wearable: dict[str, Any], tri: Any, steps: list[dict[str, str]], notes: list[str]) -> dict[str, Any]:
+    product = CATALOG["antibiotic"]
+    findings = _antibiotic_findings(profile)
+    verdict = "red" if any(f["light"] == "red" for f in findings) else "yellow" if findings else "green"
+    request_id = secrets.token_hex(4)
+    record = {"id": request_id, "status": "pending", "createdAt": time.time(), "prompt": prompt, "ingredient": product.ingredient, "product": product.label, "profile": _summary(profile), "wearable": wearable,
+              "check": {"verdict": verdict, "medicine": "antibiotic", "findings": findings, "notes": ["The doctor decides whether an antibiotic is needed and which one."]}, "decision": None, "order": None}
+    await store.put(record)
+    flags = [f["title"].lower() for f in findings[:2]]
+    steps.append({"title": "Antibiotics need a doctor", "detail": "Whether you need one and which one is the doctor's decision. Your record and its flags were sent for a quick yes or no."})
+    reply = ("Antibiotics need a doctor, who first decides whether you need one at all and which one. I do not pick one for you. I sent your record to a doctor"
+             + (f" with these flags, {', '.join(flags)}" if flags else "") + ". Once they approve, I pay the doctor and the pharmacy and arrange delivery.")
+    return _result(prompt, "infection", tri, steps, [], "doctor_review", reply, requestId=request_id, notes=notes)
+
+
+async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understand: Understand | None = None, auto_buy: bool = True) -> dict[str, Any]:
+    """`understand` is the model's reading of the sentence. Without it only the keyword rules are used.
+
+    With auto_buy off, a safe over-the-counter pick comes back as a proposal and nothing is ordered until buy() is called."""
     wearable = merge_wearable(wearable_raw)
     reading = await understand(prompt) if understand else None
     steps = [
@@ -120,14 +151,24 @@ async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understan
         {"title": "Read the ring", "detail": f"Sleep {wearable['sleep_hours']}h, temperature {wearable['temperature_c']} C, resting heart rate {wearable['resting_hr']}, oxygen {wearable['spo2']} percent."},
     ]
     tri = triage(prompt, wearable)
+    care = cautions(prompt)
     if reading and reading["red_flags"]:
-        # The model can only add caution. The rule based reasons stay as they are.
-        extra = tuple(f for f in reading["red_flags"] if f not in tri.reasons)
-        tri = Triage(True, tri.reasons + extra)
+        # The model can only add caution. The rule based reasons stay as they are. Complaints that the cautions below already
+        # handle (pain around the liver) go to a doctor, not to the emergency line, so the model's wording for them is skipped.
+        handled = re.compile(r"liver|gall|abdom|belly|jaundice|yellow|urine", re.I) if care else None
+        extra = tuple(f for f in reading["red_flags"] if f not in tri.reasons and not (handled and handled.search(f)))
+        if extra:
+            tri = Triage(True, tri.reasons + extra)
     steps.append({"title": "Safety triage", "detail": ("Red flags found, so nothing will be ordered. " + "; ".join(tri.reasons)) if tri.urgent else "No red flags in your request or your ring data."})
     if tri.urgent:
         reply = "This could be serious, so I have not ordered anything. Please contact a doctor or emergency services now (999 in the UK, 112 in the EU). Reason, " + "; ".join(tri.reasons) + "."
         return _result(prompt, None, tri, steps, [], "urgent", reply)
+
+    if care:
+        steps.append({"title": "Caution", "detail": "; ".join(care).capitalize() + ". A medicine should not be picked for this without a doctor."})
+        reply = ("I did not order anything. " + "; ".join(care).capitalize() + " should be looked at by a doctor first, and common pain relievers such as paracetamol can strain the liver, so I will not choose one for you. "
+                 "Please see a doctor today. If the pain is severe or your skin or eyes turn yellow, call 999 or 112.")
+        return _result(prompt, None, tri, steps, [], "advise", reply, notes=[NOT_CHECKED])
 
     named, intent = named_medicine(prompt), detect_intent(prompt)
     by_model = False
@@ -139,6 +180,9 @@ async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understan
             intent, by_model = reading["intent"], True
     via = " (understood with the AI model)" if by_model else ""
     notes = _context_notes(wearable) if intent in ("headache", "fever", "pain") else []
+    if intent == "infection" and not (named and named in CATALOG):
+        steps.append({"title": "Understand the request", "detail": f"This looks like an infection.{via}"})
+        return await _ask_doctor_about_antibiotic(prompt, profile, wearable, tri, steps, notes)
     if named and named in CATALOG:
         products = [CATALOG[named]]
         steps.append({"title": "Understand the request", "detail": f"You asked for {named}.{via}"})
@@ -170,6 +214,12 @@ async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understan
         reply = f"I did not order {best['ingredient']} on my own, because of this. " + "; ".join(best["warnings"]) + ". A pharmacist or doctor should confirm first."
         return _result(prompt, intent, tri, steps, candidates, "advise", reply, notes=notes)
 
+    if not auto_buy:
+        steps.append({"title": "Waiting for you", "detail": "This is a proposal. Nothing is ordered until you press buy."})
+        proposal = {"ingredient": best["ingredient"], "label": product.label, "price_usdc": product.price_usdc}
+        reply = f"I suggest {product.label}. It is the best match for your record. Press buy and I will order it and pay."
+        return _result(prompt, intent, tri, steps, candidates, "proposal", reply, proposal=proposal, notes=notes + [NOT_CHECKED])
+
     request_id = secrets.token_hex(4)
     order = await fulfil(best["ingredient"], request_id, with_consult_fee=False)
     steps.append({"title": "Order and pay", "detail": f"Ordered {product.label}. {_payment_summary(order['payments'])}"})
@@ -191,3 +241,16 @@ async def decide(request_id: str, decision: str, note: str) -> dict[str, Any] | 
         record["status"] = "rejected"
     await store.put(record)
     return record
+
+
+async def buy(ingredient: str, profile: Profile) -> dict[str, Any]:
+    """Orders an over-the-counter medicine after the person pressed buy. The safety check runs again here, so a client cannot skip it."""
+    product = CATALOG.get(ingredient)
+    if product is None or product.prescription:
+        raise ValueError("Only over-the-counter medicines can be bought directly. A doctor has to approve the rest.")
+    verdict = check(ingredient, profile).verdict
+    if verdict != "green":
+        raise ValueError(f"Not ordered. The safety check for {ingredient} is {verdict}.")
+    request_id = secrets.token_hex(4)
+    order = await fulfil(ingredient, request_id, with_consult_fee=False)
+    return {"order": order, "reply": f"Ordered {product.label}. {_payment_summary(order['payments'])}"}

@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="/assets/medipass.css?v=2">
 </head>
 <body>
-<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor" aria-current="page">Doctor</a><a href="/vision">Vision</a></nav></div></header>
+<header class="brand"><div class="brand-in"><a class="home" href="/app" aria-label="MediPass home"><img src="/assets/logo.png" alt="MediPass" width="152" height="56"></a><nav class="top" aria-label="Pages"><a href="/app">Check</a><a href="/agent">Agent</a><a href="/doctor" aria-current="page">Doctor</a><a href="/vision">Vision</a></nav></div><div class="who"><div class="who-in">I am MediPass, connected to the personal data of <b id="who">Max Mustermann</b>.</div></div></header>
 <main>
   <h1 class="sr">MediPass</h1>
   <p class="sub">A doctor sees the record and the safety check, then approves or declines in seconds. No appointment.</p>
@@ -56,5 +56,6 @@ async function load() {
 }
 load(); setInterval(load, 4000);
 </script>
+<script>try{const n=localStorage.getItem("medipassName");if(n)document.getElementById("who").textContent=n}catch{}</script>
 </body>
 </html>

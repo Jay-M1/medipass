@@ -103,7 +103,78 @@ class ModelReadingTest(unittest.TestCase):
         self.assertEqual(out["decision"], "order")
 
 
-class IntentTest(unittest.TestCase):
+ANNA_FULL_PROFILE = parse_profile({"medications": ["Clopidogrel", "Simvastatin", "Ramipril"], "allergies": ["Penicillin"], "genotype": {"CYP2C19": "poor"}, "labs": {"egfr": 52}})
+
+
+class InfectionTest(unittest.TestCase):
+    def test_an_infection_goes_to_a_doctor_who_picks_the_antibiotic(self) -> None:
+        out = run("I have a bladder infection, which antibiotic fits and can you buy it?", ANNA_FULL_PROFILE)
+        self.assertEqual((out["decision"], out.get("order")), ("doctor_review", None))
+        self.assertIn("I do not pick one", out["reply"])
+        record = asyncio.run(care.store.get(out["requestId"]))
+        self.assertEqual(record["ingredient"], "antibiotic")
+        titles = [f["title"] for f in record["check"]["findings"]]
+        self.assertIn("Penicillin allergy", titles)
+        self.assertIn("Reduced kidney function", titles)
+        self.assertEqual(record["check"]["verdict"], "red")
+
+    def test_after_the_doctor_approves_the_agent_buys(self) -> None:
+        out = run("Ich habe eine Blasenentzündung, ich brauche ein Antibiotikum", ANNA_FULL_PROFILE)
+        record = asyncio.run(care.decide(out["requestId"], "approve", "Nitrofurantoin, five days"))
+        self.assertEqual([p["label"] for p in record["order"]["payments"]], ["doctor", "pharmacy"])
+
+    def test_a_named_penicillin_is_still_refused_for_an_allergic_person(self) -> None:
+        out = run("I have an infection, order Amoxicillin", ANNA_FULL_PROFILE)
+        self.assertEqual((out["decision"], out.get("requestId")), ("advise", None))
+
+    def test_no_flags_means_a_plain_green_request(self) -> None:
+        out = run("I have a sinus infection", Profile())
+        record = asyncio.run(care.store.get(out["requestId"]))
+        self.assertEqual((out["decision"], record["check"]["verdict"]), ("doctor_review", "green"))
+
+
+class CautionTest(unittest.TestCase):
+    def test_liver_pain_is_sent_to_a_doctor_not_to_a_pain_reliever(self) -> None:
+        for text in ("Ich habe Leberschmerzen, hol mir etwas dagegen", "pain in my liver, buy me something", "pain in the right upper abdomen and my eyes are yellow"):
+            out = run(text, ANNA_FULL_PROFILE)
+            self.assertEqual((out["decision"], out.get("order")), ("advise", None), text)
+            self.assertIn("see a doctor", out["reply"])
+
+    def test_the_model_calling_liver_pain_a_red_flag_does_not_turn_it_into_an_emergency(self) -> None:
+        fake = reading(intent="pain", red_flags=["liver pain (upper right abdominal pain)"])
+        out = asyncio.run(care.run("Ich habe Leberschmerzen", ANNA_FULL_PROFILE, None, fake))
+        self.assertEqual((out["decision"], out.get("order")), ("advise", None))
+        self.assertIn("see a doctor today", out["reply"])
+
+    def test_the_model_can_still_raise_a_real_emergency_next_to_liver_pain(self) -> None:
+        fake = reading(red_flags=["chest pain", "liver pain"])
+        out = asyncio.run(care.run("Leberschmerzen und Druck auf der Brust", ANNA_FULL_PROFILE, None, fake))
+        self.assertEqual(out["decision"], "urgent")
+
+    def test_ordinary_pain_is_still_handled(self) -> None:
+        self.assertEqual(run("Mein Rücken tut weh, besorg mir etwas gegen die Schmerzen", ANNA_FULL_PROFILE)["decision"], "order")
+
+
+class BuyOptionTest(unittest.TestCase):
+    def test_without_auto_buy_a_proposal_is_returned_and_nothing_is_ordered(self) -> None:
+        out = asyncio.run(care.run("headache, please get me tablets", ANNA_FULL_PROFILE, None, None, False))
+        self.assertEqual((out["decision"], out.get("order")), ("proposal", None))
+        self.assertEqual(out["proposal"]["ingredient"], "paracetamol")
+
+    def test_pressing_buy_orders_it(self) -> None:
+        out = asyncio.run(care.buy("paracetamol", ANNA_FULL_PROFILE))
+        self.assertEqual(out["order"]["status"], "confirmed")
+
+    def test_the_safety_check_runs_again_when_buying(self) -> None:
+        with self.assertRaises(ValueError):
+            asyncio.run(care.buy("ibuprofen", ANNA_FULL_PROFILE))
+        with self.assertRaises(ValueError):
+            asyncio.run(care.buy("clopidogrel", ANNA_FULL_PROFILE))
+        with self.assertRaises(ValueError):
+            asyncio.run(care.buy("nonsense", ANNA_FULL_PROFILE))
+
+
+class RouteTest(unittest.TestCase):
     def test_detects_intent_and_named_medicine(self) -> None:
         self.assertEqual(care.detect_intent("Ich habe sehr starke Kopfschmerzen"), "headache")
         self.assertEqual(care.named_medicine("please order Nurofen for me"), "ibuprofen")
@@ -225,6 +296,17 @@ class RouteTest(unittest.TestCase):
         done = self.client.post(f"/api/care/requests/{rid}/decision", json={"decision": "approve", "note": "ok"})
         self.assertEqual(done.json()["status"], "approved")
         self.assertEqual(self.client.get(f"/api/care/requests/{rid}").json()["status"], "approved")
+
+    def test_buy_route(self) -> None:
+        profile = {"medications": ["Clopidogrel"]}
+        ok = self.client.post("/api/care/buy", json={"ingredient": "paracetamol", "profile": profile})
+        self.assertEqual((ok.status_code, ok.json()["order"]["status"]), (200, "confirmed"))
+        self.assertEqual(self.client.post("/api/care/buy", json={"ingredient": "ibuprofen", "profile": profile}).status_code, 409)
+        self.assertEqual(self.client.post("/api/care/buy", json={"profile": profile}).status_code, 400)
+
+    def test_auto_buy_off_through_the_route(self) -> None:
+        res = self.client.post("/api/care/agent", json={"prompt": "headache, tablets please", "profile": {}, "autoBuy": False})
+        self.assertEqual(res.json()["decision"], "proposal")
 
     def test_bad_input(self) -> None:
         self.assertEqual(self.client.post("/api/care/agent", json={}).status_code, 400)

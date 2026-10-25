@@ -27,9 +27,9 @@ INTENT_NAMES = {name for name, _ in INTENTS}
 def _prompt(text: str) -> str:
     return (
         "You read one message from a patient to a medicine ordering assistant. The message can be in any language.\n"
-        'Reply with JSON only, shaped like {"intent": <"headache"|"fever"|"heartburn"|"pain"|null>, "medicine": <the medicine the person names, or null>, '
+        'Reply with JSON only, shaped like {"intent": <"infection"|"headache"|"fever"|"heartburn"|"pain"|null>, "medicine": <the medicine the person names, or null>, '
         '"red_flags": [<short English phrases>]}.\n'
-        "intent is the main complaint, or null if none of those four fits. medicine is only a medicine the person explicitly names. Do not suggest one.\n"
+        "intent is the main complaint, or null if none of those fits. medicine is only a medicine the person explicitly names. Do not suggest one.\n"
         "red_flags lists every possible emergency sign the message mentions or hints at, for example a sudden or worst ever pain, chest pain, trouble breathing, "
         "confusion, trouble speaking, weakness or numbness, vision loss, fainting or seizure, a head injury, stiff neck, pregnancy. If unsure, include it. Never diagnose.\n\n"
         f"Message\n{text}"

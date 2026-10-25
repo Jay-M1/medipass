@@ -41,7 +41,18 @@ def register(app: FastAPI) -> None:
             profile = parse_profile(raw_profile)
         except ValueError as err:
             return JSONResponse({"error": str(err)}, status_code=400)
-        return JSONResponse(await care.run(prompt.strip(), profile, body.get("wearable"), understand_prompt))
+        return JSONResponse(await care.run(prompt.strip(), profile, body.get("wearable"), understand_prompt, auto_buy=body.get("autoBuy") is not False))
+
+    @app.post("/api/care/buy")
+    async def buy(request: Request) -> JSONResponse:
+        body = await _body(request)
+        ingredient, raw_profile = body.get("ingredient"), body.get("profile", {})
+        try:
+            if not isinstance(ingredient, str) or not isinstance(raw_profile, dict):
+                raise ValueError('Send { "ingredient": "paracetamol", "profile": { ... } }')
+            return JSONResponse(await care.buy(ingredient, parse_profile(raw_profile)))
+        except ValueError as err:
+            return JSONResponse({"error": str(err)}, status_code=409 if str(err).startswith(("Not ordered", "Only over")) else 400)
 
     @app.get("/api/care/requests")
     async def queue() -> JSONResponse:

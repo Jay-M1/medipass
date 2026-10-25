@@ -24,9 +24,12 @@ CATALOG: dict[str, Product] = {p.ingredient: p for p in (
     Product("amoxicillin", "Amoxicillin 500 mg, 20 capsules", 0.05, True, ()),
     Product("clopidogrel", "Clopidogrel 75 mg, 28 tablets", 0.05, True, ()),
     Product("simvastatin", "Simvastatin 20 mg, 28 tablets", 0.05, True, ()),
+    # Not a single medicine. The doctor decides if an antibiotic is needed and which one, MediPass never picks it.
+    Product("antibiotic", "Antibiotic as prescribed by the doctor", 0.05, True, ()),
 )}
 
 INTENTS: tuple[tuple[str, str], ...] = (
+    ("infection", r"infect|infekt|antibiot|bacteri|bakteri|sinusitis|bladder infection|blasenentz|halsentz|mandelentz|ohrenentz|bronchitis|pneumonia|lungenentz|eitrig"),
     ("headache", r"headache|migraine|kopfschmerz|kopfweh|migräne|migraene|head (hurts|aches|is pounding|is throbbing)|pounding head|(schädel|schaedel|kopf) (brummt|dröhnt|droehnt|hämmert|haemmert|pocht|tut weh)|brummschädel|brummschaedel"),
     ("fever", r"fever|temperature|fieber"),
     ("heartburn", r"heartburn|acid reflux|sodbrennen|reflux|stomach acid|magensäure"),
