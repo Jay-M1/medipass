@@ -62,7 +62,8 @@ def _context_notes(wearable: dict[str, Any]) -> list[str]:
 
 def _candidate(product: Product, profile: Profile) -> dict[str, Any]:
     result = check(product.ingredient, profile)
-    return {"ingredient": product.ingredient, "label": product.label, "price_usdc": product.price_usdc, "prescription": product.prescription, "verdict": result.verdict, "warnings": [f.title for f in result.findings]}
+    return {"ingredient": product.ingredient, "label": product.label, "price_usdc": product.price_usdc, "prescription": product.prescription, "verdict": result.verdict,
+            "warnings": [f.title for f in result.findings], "details": [f.detail for f in result.findings], "advice": [f.advice for f in result.findings if f.advice]}
 
 
 def _rank(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -257,7 +258,9 @@ async def run(prompt: str, profile: Profile, wearable_raw: Any = None, understan
     product = CATALOG[best["ingredient"]]
 
     if best["verdict"] == "red":
-        reply = f"I will not order {best['ingredient']}. " + "; ".join(best["warnings"]) + ". Please ask your doctor or pharmacist for an alternative."
+        reply = f"I will not order {best['ingredient']}. {best['warnings'][0]}. {best['details'][0]} " + (best["advice"][0] if best["advice"] else "Please ask your doctor or pharmacist for an alternative.")
+        if best["ingredient"] in {taken.strip().lower() for taken in profile.medications} or any(best["ingredient"] == (ALIASES.get(taken.strip().lower())) for taken in profile.medications):
+            reply += " Do not stop a medicine you already take on your own. Talk to your doctor first."
         return _result(prompt, intent, tri, steps, candidates, "advise", reply, notes=notes)
 
     if product.prescription:

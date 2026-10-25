@@ -185,6 +185,24 @@ def verdict_reply(verdict: str, otc: bool = True, findings: int = 0, good: list[
             "good": good or [], "otc": otc, "aiAssessed": True, "confidence": "high", "notes": [], "summary": "", "explanation": None}
 
 
+class LifeSavingExampleTest(unittest.TestCase):
+    """The pitch moment. A routine refill that is wrong for this person's genes."""
+
+    def test_a_clopidogrel_refill_is_stopped_with_the_reason_and_the_next_step(self) -> None:
+        out = run("Please reorder my blood thinner Clopidogrel", ANNA_FULL_PROFILE)
+        self.assertEqual((out["decision"], out.get("order"), out.get("requestId")), ("advise", None, None))
+        self.assertIn("CYP2C19", out["reply"])
+        self.assertIn("prasugrel or ticagrelor", out["reply"])
+        self.assertIn("Do not stop a medicine you already take on your own", out["reply"])
+
+    def test_an_allergic_person_is_told_why_and_what_to_do(self) -> None:
+        out = run("Order me Amoxicillin for my infection", ANNA_FULL_PROFILE)
+        self.assertEqual((out["decision"], out.get("order")), ("advise", None))
+        self.assertIn("Penicillin", out["reply"])
+        self.assertIn("Do not take it", out["reply"])
+        self.assertNotIn("Do not stop a medicine", out["reply"])  # not something they take
+
+
 class HayFeverTest(unittest.TestCase):
     def test_hay_fever_is_not_a_fever(self) -> None:
         self.assertIsNone(care.detect_intent("it is hay fever"))
